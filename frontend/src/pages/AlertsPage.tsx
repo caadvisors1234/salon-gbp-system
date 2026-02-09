@@ -26,6 +26,7 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("open");
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = "アラート | サロンGBP管理";
@@ -80,11 +81,21 @@ export default function AlertsPage() {
             <Button
               variant="secondary"
               className="text-xs px-2 py-1"
+              loading={actioningId === `ack:${a.id}`}
+              disabled={actioningId !== null}
               onClick={async (e) => {
                 e.stopPropagation();
                 if (!token) return;
-                await apiFetch(`/alerts/${a.id}/ack`, { method: "POST", token });
-                await load();
+                setActioningId(`ack:${a.id}`);
+                setErr(null);
+                try {
+                  await apiFetch(`/alerts/${a.id}/ack`, { method: "POST", token });
+                  await load();
+                } catch (ex: any) {
+                  setErr(ex?.message ?? String(ex));
+                } finally {
+                  setActioningId(null);
+                }
               }}
             >
               確認
@@ -94,11 +105,21 @@ export default function AlertsPage() {
             <Button
               variant="ghost"
               className="text-xs px-2 py-1"
+              loading={actioningId === `resolve:${a.id}`}
+              disabled={actioningId !== null}
               onClick={async (e) => {
                 e.stopPropagation();
                 if (!token) return;
-                await apiFetch(`/alerts/${a.id}/resolve`, { method: "POST", token });
-                await load();
+                setActioningId(`resolve:${a.id}`);
+                setErr(null);
+                try {
+                  await apiFetch(`/alerts/${a.id}/resolve`, { method: "POST", token });
+                  await load();
+                } catch (ex: any) {
+                  setErr(ex?.message ?? String(ex));
+                } finally {
+                  setActioningId(null);
+                }
               }}
             >
               解決
