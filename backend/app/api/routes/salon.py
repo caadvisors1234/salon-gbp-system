@@ -34,7 +34,10 @@ def update_settings(
     if salon is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Salon not found")
 
+    # model_validator が hotpepper_top_url から salon_id / blog / style / coupon
+    # の各フィールドを導出済み。これらは exclude_unset=True でも set 扱いになる。
     data = payload.model_dump(exclude_unset=True)
+    data.pop("hotpepper_top_url", None)  # computed; not a DB column
     for k, v in data.items():
         setattr(salon, k, v)
     db.add(salon)

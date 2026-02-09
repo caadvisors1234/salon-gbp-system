@@ -16,13 +16,43 @@ type Salon = {
   hotpepper_blog_url?: string | null;
   hotpepper_style_url?: string | null;
   hotpepper_coupon_url?: string | null;
+  hotpepper_top_url?: string | null;
   is_active: boolean;
 };
+
+// NOTE: パターンはバックエンド (schemas/salon.py _HOTPEPPER_RE) と同一。
+// URL形式変更時は両方を更新すること。
+function parseHotpepperUrl(url: string) {
+  const m = url.match(/beauty\.hotpepper\.jp\/slnH([a-zA-Z0-9]+)/);
+  if (!m) return null;
+  const id = m[1];
+  const base = `https://beauty.hotpepper.jp/slnH${id}`;
+  return {
+    salonId: id,
+    blogUrl: `${base}/blog/`,
+    styleUrl: `${base}/style/`,
+    couponUrl: `${base}/coupon/`,
+  };
+}
+
+function HotpepperPreview({ url }: { url: string }) {
+  const parsed = parseHotpepperUrl(url);
+  if (!parsed) return null;
+  return (
+    <div className="rounded-md border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600 space-y-1">
+      <p><span className="font-medium text-stone-700">サロンID:</span> {parsed.salonId}</p>
+      <p><span className="font-medium text-stone-700">ブログURL:</span> {parsed.blogUrl}</p>
+      <p><span className="font-medium text-stone-700">スタイルURL:</span> {parsed.styleUrl}</p>
+      <p><span className="font-medium text-stone-700">クーポンURL:</span> {parsed.couponUrl}</p>
+    </div>
+  );
+}
 
 export default function SalonSettingsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
   const [salon, setSalon] = useState<Salon | null>(null);
+  const [savedTopUrl, setSavedTopUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -34,7 +64,10 @@ export default function SalonSettingsPage() {
   useEffect(() => {
     if (!token) return;
     apiFetch<Salon>("/salon/settings", { token })
-      .then(setSalon)
+      .then((data) => {
+        setSalon(data);
+        setSavedTopUrl(data.hotpepper_top_url ?? null);
+      })
       .catch((e) => setErr(e?.message ?? String(e)));
   }, [token]);
 
@@ -63,20 +96,20 @@ export default function SalonSettingsPage() {
             setErr(null);
             setMsg(null);
             try {
+              const topUrlChanged = (salon.hotpepper_top_url ?? null) !== savedTopUrl;
+              // hotpepper_top_url: 未送信(省略)=変更なし, ""=連携解除, URL文字列=更新
               const updated = await apiFetch<Salon>("/salon/settings", {
                 method: "PUT",
                 token,
                 body: JSON.stringify({
                   name: salon.name,
                   slug: salon.slug,
-                  hotpepper_salon_id: salon.hotpepper_salon_id ?? null,
-                  hotpepper_blog_url: salon.hotpepper_blog_url ?? null,
-                  hotpepper_style_url: salon.hotpepper_style_url ?? null,
-                  hotpepper_coupon_url: salon.hotpepper_coupon_url ?? null,
+                  ...(topUrlChanged ? { hotpepper_top_url: salon.hotpepper_top_url ?? "" } : {}),
                   is_active: salon.is_active
                 })
               });
               setSalon(updated);
+              setSavedTopUrl(updated.hotpepper_top_url ?? null);
               setMsg("保存しました");
             } catch (e2: any) {
               setErr(e2?.message ?? String(e2));
@@ -101,34 +134,15 @@ export default function SalonSettingsPage() {
               />
             </FormField>
           </div>
-          <FormField label="HotPepper サロンID（slnH以降）">
+          <FormField label="HotPepper Beauty サロンページURL">
             <input
               className={inputClass}
-              value={salon.hotpepper_salon_id ?? ""}
-              onChange={(e) => setSalon({ ...salon, hotpepper_salon_id: e.target.value || null })}
+              placeholder="https://beauty.hotpepper.jp/slnH000232182/"
+              value={salon.hotpepper_top_url ?? ""}
+              onChange={(e) => setSalon({ ...salon, hotpepper_top_url: e.target.value || null })}
             />
           </FormField>
-          <FormField label="ブログURL（オプション）">
-            <input
-              className={inputClass}
-              value={salon.hotpepper_blog_url ?? ""}
-              onChange={(e) => setSalon({ ...salon, hotpepper_blog_url: e.target.value || null })}
-            />
-          </FormField>
-          <FormField label="スタイルURL（オプション）">
-            <input
-              className={inputClass}
-              value={salon.hotpepper_style_url ?? ""}
-              onChange={(e) => setSalon({ ...salon, hotpepper_style_url: e.target.value || null })}
-            />
-          </FormField>
-          <FormField label="クーポンURL（オプション）">
-            <input
-              className={inputClass}
-              value={salon.hotpepper_coupon_url ?? ""}
-              onChange={(e) => setSalon({ ...salon, hotpepper_coupon_url: e.target.value || null })}
-            />
-          </FormField>
+          <HotpepperPreview url={salon.hotpepper_top_url ?? ""} />
           <label className="flex items-center gap-2 text-sm text-stone-700">
             <input
               type="checkbox"
