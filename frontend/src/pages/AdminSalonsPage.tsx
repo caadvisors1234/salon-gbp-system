@@ -23,7 +23,7 @@ export default function AdminSalonsPage() {
   const [form, setForm] = useState({ name: "", slug: "" });
 
   useEffect(() => {
-    document.title = "サロン管理 | サロンGBP管理";
+    document.title = "テナント管理 | サロンGBP管理";
   }, []);
 
   const load = async () => {
@@ -69,7 +69,7 @@ export default function AdminSalonsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="サロン管理" />
+      <PageHeader title="テナント管理" />
       {err && <Alert variant="error" message={err} dismissible onDismiss={() => setErr(null)} />}
 
       <Card title="サロンを作成">

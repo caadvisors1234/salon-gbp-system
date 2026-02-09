@@ -103,7 +103,7 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 space-y-1.5 text-sm">
             <Link className="block font-medium text-pink-600 hover:text-pink-700" to="/settings/salon">
-              サロン設定
+              マイサロン
             </Link>
             <Link className="block font-medium text-pink-600 hover:text-pink-700" to="/settings/gbp">
               GBP設定

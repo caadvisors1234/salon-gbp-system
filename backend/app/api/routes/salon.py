@@ -38,6 +38,8 @@ def update_settings(
     # の各フィールドを導出済み。これらは exclude_unset=True でも set 扱いになる。
     data = payload.model_dump(exclude_unset=True)
     data.pop("hotpepper_top_url", None)  # computed; not a DB column
+    data.pop("name", None)               # super_adminのみ設定可能
+    data.pop("slug", None)               # super_adminのみ設定可能
     for k, v in data.items():
         setattr(salon, k, v)
     db.add(salon)

@@ -58,7 +58,7 @@ export default function SalonSettingsPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "サロン設定 | サロンGBP管理";
+    document.title = "マイサロン | サロンGBP管理";
   }, []);
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function SalonSettingsPage() {
   if (!salon) {
     return (
       <div className="space-y-4">
-        <PageHeader title="サロン設定" />
+        <PageHeader title="マイサロン" />
         <div className="flex items-center justify-center py-12">
           <IconSpinner className="h-6 w-6 text-pink-500" />
         </div>
@@ -84,9 +84,21 @@ export default function SalonSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="サロン設定" description="HotPepper URL・基本情報" />
+      <PageHeader title="マイサロン" description="HotPepper URL・基本情報" />
 
       <Card>
+        <div className="mb-4 rounded-lg border border-stone-100 bg-stone-50 px-4 py-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <div className="text-xs font-medium text-stone-500">サロン名</div>
+              <div className="text-sm font-medium text-stone-900">{salon.name}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-stone-500">スラグ</div>
+              <div className="text-sm font-medium text-stone-900">{salon.slug}</div>
+            </div>
+          </div>
+        </div>
         <form
           className="grid gap-4"
           onSubmit={async (e) => {
@@ -102,8 +114,6 @@ export default function SalonSettingsPage() {
                 method: "PUT",
                 token,
                 body: JSON.stringify({
-                  name: salon.name,
-                  slug: salon.slug,
                   ...(topUrlChanged ? { hotpepper_top_url: salon.hotpepper_top_url ?? "" } : {}),
                   is_active: salon.is_active
                 })
@@ -118,22 +128,6 @@ export default function SalonSettingsPage() {
             }
           }}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="サロン名">
-              <input
-                className={inputClass}
-                value={salon.name}
-                onChange={(e) => setSalon({ ...salon, name: e.target.value })}
-              />
-            </FormField>
-            <FormField label="スラグ">
-              <input
-                className={inputClass}
-                value={salon.slug}
-                onChange={(e) => setSalon({ ...salon, slug: e.target.value })}
-              />
-            </FormField>
-          </div>
           <FormField label="HotPepper Beauty サロンページURL">
             <input
               className={inputClass}

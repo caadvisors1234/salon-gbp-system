@@ -31,8 +31,6 @@ _HOTPEPPER_RE = re.compile(r"beauty\.hotpepper\.jp/slnH([a-zA-Z0-9]+)")
 
 
 class SalonSettingsUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=255)
-    slug: str | None = Field(default=None, max_length=100)
     # None = フィールド未送信（変更なし）, "" = HotPepper連携を解除
     hotpepper_top_url: str | None = None
     hotpepper_salon_id: str | None = Field(default=None, max_length=100)
