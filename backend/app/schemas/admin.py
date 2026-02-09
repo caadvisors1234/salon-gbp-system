@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import uuid
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class AdminSalonCreate(BaseModel):
+    name: str = Field(..., max_length=255)
+    slug: str = Field(..., max_length=100)
+
+
+class AdminUserAssignRequest(BaseModel):
+    # Without Supabase Admin API we can't reliably resolve email -> user_id.
+    # Prefer supabase_user_id. Email is stored for convenience.
+    supabase_user_id: uuid.UUID
+    email: EmailStr
+    salon_id: uuid.UUID | None = None
+    role: str = Field(default="staff", max_length=20)
+    display_name: str | None = Field(default=None, max_length=100)
+    is_active: bool = True
+
+
+class AppUserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    salon_id: uuid.UUID | None
+    supabase_user_id: uuid.UUID
+    email: str
+    display_name: str | None
+    role: str
+    is_active: bool
+

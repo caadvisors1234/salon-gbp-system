@@ -1,0 +1,4 @@
+list:
+  style_link: "a[href*='/style/']"
+  image: "img"
+

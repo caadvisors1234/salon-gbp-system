@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: #fce7f3; /* pink-100 */
+    color: #831843; /* pink-900 */
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px #f9a8d4; /* ring-2 pink-300 */
+    border-color: #f472b6; /* pink-400 */
+  }
+}

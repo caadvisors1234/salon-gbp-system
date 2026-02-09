@@ -1,0 +1,5 @@
+list:
+  coupon_item: ".coupon, .couponList li, li"
+  title: "h1, h2, h3, .title"
+  body: ".text, .detail, p"
+

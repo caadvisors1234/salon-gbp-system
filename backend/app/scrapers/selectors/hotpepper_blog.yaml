@@ -1,0 +1,12 @@
+# Best-effort selectors for HotPepper Beauty blog pages.
+# HotPepper frequently changes markup; keep these outside code for quick fixes.
+
+list:
+  article_link: "a[href*='/blog/bid']"
+
+article:
+  title: "h1, h2"
+  body: "div#blogDetail, div.blogDetail, article, .detail"
+  images: "img"
+  published_at: "time, .date, .day"
+

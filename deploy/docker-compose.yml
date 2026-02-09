@@ -1,0 +1,71 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - media_data:/data/media
+    depends_on:
+      - api
+      - frontend
+
+  api:
+    build:
+      context: ../backend
+    env_file:
+      - ../.env
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build:
+      context: ../backend
+    command: celery -A app.worker.celery_app.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - ../.env
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      - db
+      - redis
+
+  beat:
+    build:
+      context: ../backend
+    command: celery -A app.worker.celery_app.celery_app beat --loglevel=info
+    env_file:
+      - ../.env
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      - redis
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+    environment:
+      - VITE_API_BASE=/api
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: salon_gbp
+      POSTGRES_USER: salon_gbp
+      POSTGRES_PASSWORD: salon_gbp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+  postgres_data:
+  media_data:
+

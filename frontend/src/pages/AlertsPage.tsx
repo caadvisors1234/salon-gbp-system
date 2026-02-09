@@ -1,0 +1,145 @@
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../lib/auth";
+import { apiFetch } from "../lib/api";
+import PageHeader from "../components/PageHeader";
+import DataTable, { Column } from "../components/DataTable";
+import Badge, { severityVariant, statusVariant } from "../components/Badge";
+import Button from "../components/Button";
+import Alert from "../components/Alert";
+import { IconRefresh } from "../components/icons";
+import { selectClass } from "../components/FormField";
+import { formatDateTime } from "../lib/format";
+
+type AlertItem = {
+  id: string;
+  severity: string;
+  alert_type: string;
+  message: string;
+  status: string;
+  created_at: string;
+};
+
+export default function AlertsPage() {
+  const { session } = useAuth();
+  const token = session?.access_token;
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("open");
+
+  useEffect(() => {
+    document.title = "アラート | サロンGBP管理";
+  }, []);
+
+  const load = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await apiFetch<AlertItem[]>(`/alerts?status=${encodeURIComponent(statusFilter)}`, { token });
+      setAlerts(res);
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, statusFilter]);
+
+  const columns: Column<AlertItem>[] = [
+    {
+      key: "severity",
+      header: "重要度",
+      render: (a) => <Badge variant={severityVariant(a.severity)}>{a.severity}</Badge>,
+    },
+    {
+      key: "type",
+      header: "種別",
+      render: (a) => <span className="text-sm font-medium text-stone-800">{a.alert_type}</span>,
+    },
+    {
+      key: "message",
+      header: "メッセージ",
+      className: "max-w-[28rem]",
+      render: (a) => <span className="text-sm text-stone-600 truncate block">{a.message}</span>,
+    },
+    {
+      key: "created",
+      header: "発生日時",
+      render: (a) => <span className="text-xs text-stone-500">{formatDateTime(a.created_at)}</span>,
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (a) => (
+        <div className="flex items-center gap-1">
+          {a.status === "open" && (
+            <Button
+              variant="secondary"
+              className="text-xs px-2 py-1"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!token) return;
+                await apiFetch(`/alerts/${a.id}/ack`, { method: "POST", token });
+                await load();
+              }}
+            >
+              確認
+            </Button>
+          )}
+          {a.status !== "resolved" && (
+            <Button
+              variant="ghost"
+              className="text-xs px-2 py-1"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!token) return;
+                await apiFetch(`/alerts/${a.id}/resolve`, { method: "POST", token });
+                await load();
+              }}
+            >
+              解決
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="アラート"
+        description="システム内部アラート一覧"
+        action={
+          <div className="flex items-center gap-2">
+            <select
+              className={selectClass + " w-auto"}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="open">未対応</option>
+              <option value="acked">確認済み</option>
+              <option value="resolved">解決済み</option>
+            </select>
+            <Button variant="secondary" onClick={() => load()}>
+              <IconRefresh className="h-4 w-4" />
+              再読込
+            </Button>
+          </div>
+        }
+      />
+      {err && <Alert variant="error" message={err} />}
+      <DataTable
+        columns={columns}
+        data={alerts}
+        rowKey={(a) => a.id}
+        loading={loading}
+        emptyMessage="アラートはありません"
+      />
+    </div>
+  );
+}
