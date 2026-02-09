@@ -1,5 +1,7 @@
 list:
-  coupon_item: ".coupon, .couponList li, li"
-  title: "h1, h2, h3, .title"
-  body: ".text, .detail, p"
-
+  coupon_item: "table.couponTable"
+  title: "p.couponMenuName"
+  price: "p.couponMenuPrice"
+  description: "p.couponDescription"
+  conditions: "dl.couponConditionsList"
+  label: "td[class^='couponLabel']"

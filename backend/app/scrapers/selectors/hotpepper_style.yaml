@@ -1,4 +1,4 @@
 list:
   style_link: "a[href*='/style/']"
-  image: "img"
-
+  image: "img.bdImgGray"
+  title: "p.mT10.lh18 a"

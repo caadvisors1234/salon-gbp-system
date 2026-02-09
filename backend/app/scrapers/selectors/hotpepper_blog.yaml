@@ -5,8 +5,7 @@ list:
   article_link: "a[href*='/blog/bid']"
 
 article:
-  title: "h1, h2"
-  body: "div#blogDetail, div.blogDetail, article, .detail"
-  images: "img"
-  published_at: "time, .date, .day"
-
+  title: "dl.blogDtlInner > dt"
+  body: "dl.blogDtlInner > dd"
+  images: "dl.blogDtlInner img"
+  published_at: "div.fr.fs10"
