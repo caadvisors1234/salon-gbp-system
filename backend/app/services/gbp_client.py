@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
+logger = logging.getLogger(__name__)
+
 
 GBP_BASE_V4 = "https://mybusiness.googleapis.com/v4"
 GBP_ACCOUNT_MGMT = "https://mybusinessaccountmanagement.googleapis.com/v1"
 GBP_BUSINESS_INFO = "https://mybusinessbusinessinformation.googleapis.com/v1"
+
+_MAX_PAGES = 50  # Safety limit to prevent infinite pagination loops
 
 
 @dataclass(frozen=True)
@@ -22,14 +27,43 @@ def _auth_headers(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
 
+def _paginated_get(
+    client: httpx.Client,
+    url: str,
+    *,
+    headers: dict[str, str],
+    params: dict[str, Any] | None = None,
+    page_size: int,
+    items_key: str,
+) -> list[dict[str, Any]]:
+    """Fetch all pages from a Google API endpoint using cursor-based pagination."""
+    all_items: list[dict[str, Any]] = []
+    req_params: dict[str, Any] = dict(params or {})
+    req_params["pageSize"] = page_size
+    for _ in range(_MAX_PAGES):
+        r = client.get(url, headers=headers, params=req_params)
+        r.raise_for_status()
+        data: dict[str, Any] = r.json()
+        all_items.extend(data.get(items_key) or [])
+        next_token = data.get("nextPageToken")
+        if not next_token:
+            break
+        req_params["pageToken"] = next_token
+    else:
+        logger.warning("Pagination stopped at %d-page safety limit for %s", _MAX_PAGES, url)
+    return all_items
+
+
 def list_accounts(*, access_token: str) -> list[str]:
     """List GBP accounts using the Account Management API v1."""
     url = f"{GBP_ACCOUNT_MGMT}/accounts"
     with httpx.Client(timeout=20) as client:
-        r = client.get(url, headers=_auth_headers(access_token))
-        r.raise_for_status()
-        data: dict[str, Any] = r.json()
-    accounts = data.get("accounts") or []
+        accounts = _paginated_get(
+            client, url,
+            headers=_auth_headers(access_token),
+            page_size=20,
+            items_key="accounts",
+        )
     out: list[str] = []
     for a in accounts:
         name = str(a.get("name") or "")
@@ -45,11 +79,13 @@ def list_locations(*, access_token: str, account_id: str) -> list[GbpLocationInf
     url = f"{GBP_BUSINESS_INFO}/accounts/{account_id}/locations"
     params = {"readMask": "name,title,storeCode"}
     with httpx.Client(timeout=30) as client:
-        r = client.get(url, headers=_auth_headers(access_token), params=params)
-        r.raise_for_status()
-        data: dict[str, Any] = r.json()
-
-    locations = data.get("locations") or []
+        locations = _paginated_get(
+            client, url,
+            headers=_auth_headers(access_token),
+            params=params,
+            page_size=100,
+            items_key="locations",
+        )
     out: list[GbpLocationInfo] = []
     for loc in locations:
         name = str(loc.get("name") or "")
