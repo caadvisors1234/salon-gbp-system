@@ -7,6 +7,7 @@ from app.models.instagram_account import InstagramAccount
 from app.models.job_log import JobLog
 from app.models.media_asset import MediaAsset
 from app.models.salon import Salon
+from app.models.scrape_seed import ScrapeSeeded
 from app.models.source_content import SourceContent
 from app.models.user import AppUser
 
@@ -21,6 +22,7 @@ __all__ = [
     "JobLog",
     "MediaAsset",
     "Salon",
+    "ScrapeSeeded",
     "SourceContent",
 ]
 

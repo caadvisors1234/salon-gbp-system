@@ -41,7 +41,12 @@ from app.services.media_storage import (
     mark_asset_failed,
 )
 from app.worker.celery_app import celery_app
-from app.worker.scraper_helpers import create_gbp_posts_for_source, create_media_uploads_for_source
+from app.worker.scraper_helpers import (
+    create_gbp_posts_for_source,
+    create_media_uploads_for_source,
+    is_seeded,
+    mark_seeded,
+)
 
 
 def _now() -> datetime:
@@ -197,6 +202,9 @@ def scrape_hotpepper_blog() -> dict[str, Any]:
                 blog_url = _salon_blog_url(salon)
                 if not blog_url:
                     continue
+                seeding = not is_seeded(db, salon_id=salon.id, source_type="hotpepper_blog")
+                if seeding:
+                    logger.info("Seed mode for hotpepper_blog salon_id=%s", salon.id)
                 time.sleep(5)
                 try:
                     links = fetch_blog_links(blog_url=blog_url)[:20]
@@ -245,24 +253,25 @@ def scrape_hotpepper_blog() -> dict[str, Any]:
                         db.commit()
                         db.refresh(sc)
 
-                        image_asset_id: uuid.UUID | None = None
-                        if first_img:
-                            asset = create_pending_asset(db, salon_id=salon.id, source_url=first_img)
-                            image_asset_id = asset.id
-                            download_media_asset.delay(str(asset.id))
+                        if not seeding:
+                            image_asset_id: uuid.UUID | None = None
+                            if first_img:
+                                asset = create_pending_asset(db, salon_id=salon.id, source_url=first_img)
+                                image_asset_id = asset.id
+                                download_media_asset.delay(str(asset.id))
 
-                        create_gbp_posts_for_source(
-                            db,
-                            salon_id=salon.id,
-                            sc=sc,
-                            summary=summary,
-                            image_asset_id=image_asset_id,
-                            post_type="STANDARD",
-                            cta_type="LEARN_MORE",
-                            cta_url=article.url,
-                            offer_redeem_online_url=None,
-                        )
-                        db.commit()
+                            create_gbp_posts_for_source(
+                                db,
+                                salon_id=salon.id,
+                                sc=sc,
+                                summary=summary,
+                                image_asset_id=image_asset_id,
+                                post_type="STANDARD",
+                                cta_type="LEARN_MORE",
+                                cta_url=article.url,
+                                offer_redeem_online_url=None,
+                            )
+                            db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
                         db.rollback()
@@ -276,6 +285,9 @@ def scrape_hotpepper_blog() -> dict[str, Any]:
                             entity_id=salon.id,
                         )
                         continue
+
+                if seeding:
+                    mark_seeded(db, salon_id=salon.id, source_type="hotpepper_blog")
 
             _finish_job(db, job, status="completed", items_found=found, items_processed=processed)
             return {"found": found, "processed": processed}
@@ -296,6 +308,9 @@ def scrape_hotpepper_style() -> dict[str, Any]:
                 style_url = _salon_style_url(salon)
                 if not style_url:
                     continue
+                seeding = not is_seeded(db, salon_id=salon.id, source_type="hotpepper_style")
+                if seeding:
+                    logger.info("Seed mode for hotpepper_style salon_id=%s", salon.id)
                 time.sleep(5)
                 try:
                     images = fetch_style_images(style_url=style_url)
@@ -338,19 +353,20 @@ def scrape_hotpepper_style() -> dict[str, Any]:
                         db.commit()
                         db.refresh(sc)
 
-                        asset = create_pending_asset(db, salon_id=salon.id, source_url=img.image_url)
-                        download_media_asset.delay(str(asset.id))
+                        if not seeding:
+                            asset = create_pending_asset(db, salon_id=salon.id, source_url=img.image_url)
+                            download_media_asset.delay(str(asset.id))
 
-                        create_media_uploads_for_source(
-                            db,
-                            salon_id=salon.id,
-                            sc=sc,
-                            media_asset_id=asset.id,
-                            source_image_url=img.image_url,
-                            category="ADDITIONAL",
-                            media_format="PHOTO",
-                        )
-                        db.commit()
+                            create_media_uploads_for_source(
+                                db,
+                                salon_id=salon.id,
+                                sc=sc,
+                                media_asset_id=asset.id,
+                                source_image_url=img.image_url,
+                                category="ADDITIONAL",
+                                media_format="PHOTO",
+                            )
+                            db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
                         db.rollback()
@@ -364,6 +380,9 @@ def scrape_hotpepper_style() -> dict[str, Any]:
                             entity_id=salon.id,
                         )
                         continue
+
+                if seeding:
+                    mark_seeded(db, salon_id=salon.id, source_type="hotpepper_style")
 
             _finish_job(db, job, status="completed", items_found=found, items_processed=processed)
             return {"found": found, "processed": processed}
@@ -384,6 +403,9 @@ def scrape_hotpepper_coupon() -> dict[str, Any]:
                 coupon_url = _salon_coupon_url(salon)
                 if not coupon_url:
                     continue
+                seeding = not is_seeded(db, salon_id=salon.id, source_type="hotpepper_coupon")
+                if seeding:
+                    logger.info("Seed mode for hotpepper_coupon salon_id=%s", salon.id)
                 time.sleep(5)
                 try:
                     coupons = fetch_coupons(coupon_url=coupon_url)
@@ -426,22 +448,22 @@ def scrape_hotpepper_coupon() -> dict[str, Any]:
                         db.commit()
                         db.refresh(sc)
 
-                        summary = f"{c.title}\n{c.body_text}".strip()
-                        # Keep within 1500.
-                        summary = summary[:1500]
+                        if not seeding:
+                            summary = f"{c.title}\n{c.body_text}".strip()
+                            summary = summary[:1500]
 
-                        create_gbp_posts_for_source(
-                            db,
-                            salon_id=salon.id,
-                            sc=sc,
-                            summary=summary,
-                            image_asset_id=None,
-                            post_type="OFFER",
-                            cta_type=None,
-                            cta_url=None,
-                            offer_redeem_online_url=coupon_url,
-                        )
-                        db.commit()
+                            create_gbp_posts_for_source(
+                                db,
+                                salon_id=salon.id,
+                                sc=sc,
+                                summary=summary,
+                                image_asset_id=None,
+                                post_type="OFFER",
+                                cta_type=None,
+                                cta_url=None,
+                                offer_redeem_online_url=coupon_url,
+                            )
+                            db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
                         db.rollback()
@@ -455,6 +477,9 @@ def scrape_hotpepper_coupon() -> dict[str, Any]:
                             entity_id=salon.id,
                         )
                         continue
+
+                if seeding:
+                    mark_seeded(db, salon_id=salon.id, source_type="hotpepper_coupon")
 
             _finish_job(db, job, status="completed", items_found=found, items_processed=processed)
             return {"found": found, "processed": processed}
@@ -472,7 +497,21 @@ def fetch_instagram_media() -> dict[str, Any]:
         job = _start_job(db, salon_id=None, job_type="fetch_instagram")
         try:
             accounts = db.query(InstagramAccount).filter(InstagramAccount.is_active.is_(True)).all()
+
+            # Determine seed state per salon before the loop
+            seeding_salons: set[uuid.UUID] = set()
+            seeded_salons: set[uuid.UUID] = set()
             for acc in accounts:
+                if acc.salon_id in seeded_salons or acc.salon_id in seeding_salons:
+                    continue
+                if is_seeded(db, salon_id=acc.salon_id, source_type="instagram"):
+                    seeded_salons.add(acc.salon_id)
+                else:
+                    seeding_salons.add(acc.salon_id)
+                    logger.info("Seed mode for instagram salon_id=%s", acc.salon_id)
+
+            for acc in accounts:
+                seeding = acc.salon_id in seeding_salons
                 time.sleep(1)
                 try:
                     token = decrypt_str(acc.access_token_enc, settings.token_enc_key_b64)
@@ -541,30 +580,31 @@ def fetch_instagram_media() -> dict[str, Any]:
                         db.commit()
                         db.refresh(sc)
 
-                        image_asset_id = None
-                        if image_url:
-                            asset = create_pending_asset(db, salon_id=acc.salon_id, source_url=image_url)
-                            image_asset_id = asset.id
-                            download_media_asset.delay(str(asset.id))
+                        if not seeding:
+                            image_asset_id = None
+                            if image_url:
+                                asset = create_pending_asset(db, salon_id=acc.salon_id, source_url=image_url)
+                                image_asset_id = asset.id
+                                download_media_asset.delay(str(asset.id))
 
-                        summary = instagram_caption_to_gbp(
-                            caption=caption,
-                            permalink=permalink,
-                            sync_hashtags=bool(acc.sync_hashtags),
-                        )
+                            summary = instagram_caption_to_gbp(
+                                caption=caption,
+                                permalink=permalink,
+                                sync_hashtags=bool(acc.sync_hashtags),
+                            )
 
-                        create_gbp_posts_for_source(
-                            db,
-                            salon_id=acc.salon_id,
-                            sc=sc,
-                            summary=summary,
-                            image_asset_id=image_asset_id,
-                            post_type="STANDARD",
-                            cta_type="LEARN_MORE",
-                            cta_url=permalink or None,
-                            offer_redeem_online_url=None,
-                        )
-                        db.commit()
+                            create_gbp_posts_for_source(
+                                db,
+                                salon_id=acc.salon_id,
+                                sc=sc,
+                                summary=summary,
+                                image_asset_id=image_asset_id,
+                                post_type="STANDARD",
+                                cta_type="LEARN_MORE",
+                                cta_url=permalink or None,
+                                offer_redeem_online_url=None,
+                            )
+                            db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
                         db.rollback()
@@ -578,6 +618,9 @@ def fetch_instagram_media() -> dict[str, Any]:
                             entity_id=acc.id,
                         )
                         continue
+
+            for sid in seeding_salons:
+                mark_seeded(db, salon_id=sid, source_type="instagram")
 
             _finish_job(db, job, status="completed", items_found=found, items_processed=processed)
             return {"found": found, "processed": processed}

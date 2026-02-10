@@ -1,14 +1,20 @@
 """Shared helpers for scraper tasks to avoid code duplication."""
 from __future__ import annotations
 
+import logging
 import uuid
+from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.gbp_location import GbpLocation
 from app.models.gbp_media_upload import GbpMediaUpload
 from app.models.gbp_post import GbpPost
+from app.models.scrape_seed import ScrapeSeeded
 from app.models.source_content import SourceContent
+
+logger = logging.getLogger(__name__)
 
 
 def _active_gbp_locations(db: Session, salon_id: uuid.UUID) -> list[GbpLocation]:
@@ -111,3 +117,35 @@ def create_media_uploads_for_source(
         db.add(up)
         uploads.append(up)
     return uploads
+
+
+def is_seeded(db: Session, *, salon_id: uuid.UUID, source_type: str) -> bool:
+    """Return True if the initial seed scrape has already completed for this salon/source_type."""
+    return (
+        db.query(ScrapeSeeded)
+        .filter(ScrapeSeeded.salon_id == salon_id)
+        .filter(ScrapeSeeded.source_type == source_type)
+        .one_or_none()
+    ) is not None
+
+
+def mark_seeded(db: Session, *, salon_id: uuid.UUID, source_type: str) -> None:
+    """Record that the initial seed scrape is complete. Idempotent.
+
+    Uses a SAVEPOINT so that an IntegrityError (duplicate) does not
+    roll back the caller's pending transaction state.
+    """
+    record = ScrapeSeeded(
+        id=uuid.uuid4(),
+        salon_id=salon_id,
+        source_type=source_type,
+        seeded_at=datetime.now(tz=timezone.utc),
+    )
+    nested = db.begin_nested()
+    try:
+        db.add(record)
+        nested.commit()
+        logger.info("Marked seeded: salon_id=%s source_type=%s", salon_id, source_type)
+    except IntegrityError:
+        nested.rollback()
+        logger.debug("Already seeded: salon_id=%s source_type=%s", salon_id, source_type)
