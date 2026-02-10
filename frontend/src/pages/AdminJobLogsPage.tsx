@@ -8,25 +8,13 @@ import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
 import { formatDateTime } from "../lib/format";
-
-type Me = { role: string };
-type JobLog = {
-  id: string;
-  salon_id?: string | null;
-  job_type: string;
-  status: string;
-  items_found: number;
-  items_processed: number;
-  error_message?: string | null;
-  started_at: string;
-  completed_at?: string | null;
-};
+import type { MeResponse, JobLogResponse } from "../types/api";
 
 export default function AdminJobLogsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [me, setMe] = useState<Me | null>(null);
-  const [logs, setLogs] = useState<JobLog[]>([]);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [logs, setLogs] = useState<JobLogResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -34,30 +22,35 @@ export default function AdminJobLogsPage() {
     document.title = "ジョブログ | サロンGBP管理";
   }, []);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     if (!token) return;
     setLoading(true);
     try {
-      const [meRes, logsRes] = await Promise.all([apiFetch<Me>("/me", { token }), apiFetch<JobLog[]>("/admin/job_logs?limit=200", { token })]);
+      const [meRes, logsRes] = await Promise.all([
+        apiFetch<MeResponse>("/me", { token, signal }),
+        apiFetch<JobLogResponse[]>("/admin/job_logs?limit=200", { token, signal }),
+      ]);
       setMe(meRes);
       setLogs(logsRes);
     } catch (e: any) {
+      if (e.name === "AbortError") return;
       setErr(e?.message ?? String(e));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
   }, [token]);
 
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
   }
 
-  const columns: Column<JobLog>[] = [
+  const columns: Column<JobLogResponse>[] = [
     {
       key: "job",
       header: "ジョブ",

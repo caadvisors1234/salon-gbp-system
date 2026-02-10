@@ -10,27 +10,13 @@ import FormField, { inputClass, textareaClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconSpinner } from "../components/icons";
 import { formatDateTime } from "../lib/format";
-
-type Post = {
-  id: string;
-  status: string;
-  post_type: string;
-  summary_generated: string;
-  summary_final: string;
-  cta_type?: string | null;
-  cta_url?: string | null;
-  offer_redeem_online_url?: string | null;
-  image_asset_id?: string | null;
-  error_message?: string | null;
-  created_at: string;
-  posted_at?: string | null;
-};
+import type { PostDetail } from "../types/api";
 
 export default function PostDetailPage() {
   const { postId } = useParams();
   const { session } = useAuth();
   const token = session?.access_token;
-  const [post, setPost] = useState<Post | null>(null);
+  const [post, setPost] = useState<PostDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -39,15 +25,16 @@ export default function PostDetailPage() {
     document.title = "投稿詳細 | サロンGBP管理";
   }, []);
 
-  const load = async () => {
-    if (!token || !postId) return;
-    const p = await apiFetch<Post>(`/posts/${postId}`, { token });
-    setPost(p);
-  };
-
   useEffect(() => {
-    load().catch((e) => setErr(e?.message ?? String(e)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!token || !postId) return;
+    const ac = new AbortController();
+    apiFetch<PostDetail>(`/posts/${postId}`, { token, signal: ac.signal })
+      .then(setPost)
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setErr(e?.message ?? String(e));
+      });
+    return () => ac.abort();
   }, [token, postId]);
 
   if (!post) {
@@ -64,7 +51,7 @@ export default function PostDetailPage() {
     setErr(null);
     setMsg(null);
     try {
-      const updated = await apiFetch<Post>(path, { method: "POST", token });
+      const updated = await apiFetch<PostDetail>(path, { method: "POST", token });
       setPost(updated);
       setMsg("完了しました");
     } catch (e2: any) {
@@ -134,7 +121,7 @@ export default function PostDetailPage() {
               setErr(null);
               setMsg(null);
               try {
-                const updated = await apiFetch<Post>(`/posts/${post.id}`, {
+                const updated = await apiFetch<PostDetail>(`/posts/${post.id}`, {
                   method: "PATCH",
                   token,
                   body: JSON.stringify({

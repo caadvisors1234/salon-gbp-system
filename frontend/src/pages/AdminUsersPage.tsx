@@ -9,17 +9,14 @@ import Button from "../components/Button";
 import FormField, { inputClass, selectClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
-
-type Me = { role: string };
-type User = { id: string; supabase_user_id: string; email: string; salon_id: string | null; role: string; is_active: boolean };
-type Salon = { id: string; name: string; slug: string };
+import type { MeResponse, SalonResponse, AppUserResponse } from "../types/api";
 
 export default function AdminUsersPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [me, setMe] = useState<Me | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [salons, setSalons] = useState<Salon[]>([]);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [users, setUsers] = useState<AppUserResponse[]>([]);
+  const [salons, setSalons] = useState<SalonResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -36,28 +33,30 @@ export default function AdminUsersPage() {
     document.title = "ユーザー管理 | サロンGBP管理";
   }, []);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     if (!token) return;
     setLoading(true);
     try {
       const [meRes, usersRes, salonsRes] = await Promise.all([
-        apiFetch<Me>("/me", { token }),
-        apiFetch<User[]>("/admin/users", { token }),
-        apiFetch<Salon[]>("/admin/salons", { token })
+        apiFetch<MeResponse>("/me", { token, signal }),
+        apiFetch<AppUserResponse[]>("/admin/users", { token, signal }),
+        apiFetch<SalonResponse[]>("/admin/salons", { token, signal })
       ]);
       setMe(meRes);
       setUsers(usersRes);
       setSalons(salonsRes);
     } catch (e: any) {
+      if (e.name === "AbortError") return;
       setErr(e?.message ?? String(e));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
   }, [token]);
 
   if (me && me.role !== "super_admin") {
@@ -72,7 +71,7 @@ export default function AdminUsersPage() {
     }
   };
 
-  const columns: Column<User>[] = [
+  const columns: Column<AppUserResponse>[] = [
     {
       key: "email",
       header: "メール",

@@ -1,36 +1,31 @@
-import React, { useEffect, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { apiFetch } from "./lib/api";
 import Sidebar from "./components/Sidebar";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { IconMenu, IconSpinner } from "./components/icons";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/DashboardPage";
-import SalonSettingsPage from "./pages/SalonSettingsPage";
-import GbpSettingsPage from "./pages/GbpSettingsPage";
-import InstagramSettingsPage from "./pages/InstagramSettingsPage";
-import PostsListPage from "./pages/PostsListPage";
-import PostDetailPage from "./pages/PostDetailPage";
-import MediaUploadsPage from "./pages/MediaUploadsPage";
-import AlertsPage from "./pages/AlertsPage";
-import AdminSalonsPage from "./pages/AdminSalonsPage";
-import AdminUsersPage from "./pages/AdminUsersPage";
-import AdminMonitorPage from "./pages/AdminMonitorPage";
-import AdminJobLogsPage from "./pages/AdminJobLogsPage";
+import type { MeResponse } from "./types/api";
 
-type Me = {
-  id: string;
-  supabase_user_id: string;
-  email: string;
-  role: string;
-  salon_id: string | null;
-};
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const SalonSettingsPage = lazy(() => import("./pages/SalonSettingsPage"));
+const GbpSettingsPage = lazy(() => import("./pages/GbpSettingsPage"));
+const InstagramSettingsPage = lazy(() => import("./pages/InstagramSettingsPage"));
+const PostsListPage = lazy(() => import("./pages/PostsListPage"));
+const PostDetailPage = lazy(() => import("./pages/PostDetailPage"));
+const MediaUploadsPage = lazy(() => import("./pages/MediaUploadsPage"));
+const AlertsPage = lazy(() => import("./pages/AlertsPage"));
+const AdminSalonsPage = lazy(() => import("./pages/AdminSalonsPage"));
+const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage"));
+const AdminMonitorPage = lazy(() => import("./pages/AdminMonitorPage"));
+const AdminJobLogsPage = lazy(() => import("./pages/AdminJobLogsPage"));
 
 function Shell() {
   const { session, loading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [me, setMe] = useState<Me | null>(null);
+  const [me, setMe] = useState<MeResponse | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const token = session?.access_token;
 
@@ -39,9 +34,14 @@ function Shell() {
       setMe(null);
       return;
     }
-    apiFetch<Me>("/me", { token })
+    const ac = new AbortController();
+    apiFetch<MeResponse>("/me", { token, signal: ac.signal })
       .then(setMe)
-      .catch(() => setMe(null));
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setMe(null);
+      });
+    return () => ac.abort();
   }, [token]);
 
   // Close sidebar on route change
@@ -66,14 +66,27 @@ function Shell() {
 
   if (isLogin) {
     return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-      </Routes>
+      <Suspense fallback={
+        <div className="flex items-center justify-center py-12">
+          <IconSpinner className="h-6 w-6 text-pink-500" />
+        </div>
+      }>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+        </Routes>
+      </Suspense>
     );
   }
 
   return (
     <div className="min-h-screen bg-stone-50">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-white focus:text-pink-600 focus:shadow-lg focus:rounded-lg"
+      >
+        メインコンテンツへスキップ
+      </a>
+
       <Sidebar
         email={me?.email ?? session?.user.email ?? ""}
         role={me?.role ?? ""}
@@ -89,6 +102,7 @@ function Shell() {
       <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-stone-200 bg-white px-4 py-3 md:hidden">
         <button
           className="rounded-lg p-1.5 hover:bg-stone-100"
+          aria-label="メニューを開く"
           onClick={() => setSidebarOpen(true)}
         >
           <IconMenu className="h-5 w-5 text-stone-600" />
@@ -97,25 +111,31 @@ function Shell() {
       </div>
 
       {/* Main content */}
-      <main className="md:ml-64">
+      <main id="main-content" className="md:ml-64">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/settings/salon" element={<SalonSettingsPage />} />
-            <Route path="/settings/gbp" element={<GbpSettingsPage />} />
-            <Route path="/settings/instagram" element={<InstagramSettingsPage />} />
-            <Route path="/posts/:postId" element={<PostDetailPage />} />
-            <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
-            <Route path="/posts/history" element={<PostsListPage kind="history" />} />
-            <Route path="/media/pending" element={<MediaUploadsPage />} />
-            <Route path="/alerts" element={<AlertsPage />} />
-            <Route path="/admin/salons" element={<AdminSalonsPage />} />
-            <Route path="/admin/monitor" element={<AdminMonitorPage />} />
-            <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
-            <Route path="/admin/users" element={<AdminUsersPage />} />
-            <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
-          </Routes>
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-12">
+              <IconSpinner className="h-6 w-6 text-pink-500" />
+            </div>
+          }>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/settings/salon" element={<SalonSettingsPage />} />
+              <Route path="/settings/gbp" element={<GbpSettingsPage />} />
+              <Route path="/settings/instagram" element={<InstagramSettingsPage />} />
+              <Route path="/posts/:postId" element={<PostDetailPage />} />
+              <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
+              <Route path="/posts/history" element={<PostsListPage kind="history" />} />
+              <Route path="/media/pending" element={<MediaUploadsPage />} />
+              <Route path="/alerts" element={<AlertsPage />} />
+              <Route path="/admin/salons" element={<AdminSalonsPage />} />
+              <Route path="/admin/monitor" element={<AdminMonitorPage />} />
+              <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
+            </Routes>
+          </Suspense>
         </div>
       </main>
     </div>
@@ -124,8 +144,10 @@ function Shell() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Shell />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <Shell />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

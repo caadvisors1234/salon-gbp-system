@@ -9,16 +9,7 @@ import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
 import { formatDateTime } from "../lib/format";
-
-type GbpConn = { id: string; status: string; google_account_email: string; token_expires_at: string };
-type LocationRow = {
-  id: string;
-  account_id: string;
-  location_id: string;
-  location_name?: string | null;
-  is_active: boolean;
-};
-type AvailableLoc = { account_id: string; location_id: string; location_name?: string | null };
+import type { GbpConnectionResponse, GbpLocationResponse, GbpAvailableLocation } from "../types/api";
 
 export default function GbpSettingsPage() {
   const { session } = useAuth();
@@ -26,14 +17,15 @@ export default function GbpSettingsPage() {
   const [search] = useSearchParams();
   const oauth = search.get("oauth");
 
-  const [conn, setConn] = useState<GbpConn | null>(null);
+  const [conn, setConn] = useState<GbpConnectionResponse | null>(null);
   const [connErr, setConnErr] = useState<string | null>(null);
-  const [locations, setLocations] = useState<LocationRow[]>([]);
-  const [available, setAvailable] = useState<AvailableLoc[]>([]);
+  const [locations, setLocations] = useState<GbpLocationResponse[]>([]);
+  const [available, setAvailable] = useState<GbpAvailableLocation[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const keyOf = (a: { account_id: string; location_id: string }) => `${a.account_id}::${a.location_id}`;
 
@@ -43,16 +35,22 @@ export default function GbpSettingsPage() {
 
   useEffect(() => {
     if (!token) return;
+    const ac = new AbortController();
     setConnErr(null);
-    apiFetch<GbpConn>("/gbp/connection", { token })
+    apiFetch<GbpConnectionResponse>("/gbp/connection", { token, signal: ac.signal })
       .then((c) => setConn(c))
       .catch((e) => {
+        if (e.name === "AbortError") return;
         setConn(null);
         setConnErr(e?.message ?? String(e));
       });
-    apiFetch<LocationRow[]>("/gbp/locations", { token })
+    apiFetch<GbpLocationResponse[]>("/gbp/locations", { token, signal: ac.signal })
       .then((locs) => setLocations(locs))
-      .catch(() => setLocations([]));
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setLocations([]);
+      });
+    return () => ac.abort();
   }, [token, oauth]);
 
   useEffect(() => {
@@ -119,7 +117,7 @@ export default function GbpSettingsPage() {
               setErr(null);
               setMsg(null);
               try {
-                const locs = await apiFetch<LocationRow[]>("/gbp/locations", { token });
+                const locs = await apiFetch<GbpLocationResponse[]>("/gbp/locations", { token });
                 setLocations(locs);
                 setMsg("再読込しました");
               } catch (e2: any) {
@@ -152,16 +150,23 @@ export default function GbpSettingsPage() {
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-stone-300 text-pink-600"
+                        disabled={togglingId !== null}
                         checked={l.is_active}
-                        onChange={async (e) => {
+                        onChange={async () => {
                           if (!token) return;
-                          const next = e.target.checked;
-                          const updated = await apiFetch<LocationRow>(`/gbp/locations/${l.id}`, {
-                            method: "PATCH",
-                            token,
-                            body: JSON.stringify({ is_active: next })
-                          });
-                          setLocations((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
+                          setTogglingId(l.id);
+                          try {
+                            const updated = await apiFetch<GbpLocationResponse>(`/gbp/locations/${l.id}`, {
+                              method: "PATCH",
+                              token,
+                              body: JSON.stringify({ is_active: !l.is_active }),
+                            });
+                            setLocations((prev) => prev.map((x) => (x.id === l.id ? updated : x)));
+                          } catch (ex: any) {
+                            setErr(ex?.message ?? String(ex));
+                          } finally {
+                            setTogglingId(null);
+                          }
                         }}
                       />
                     </td>
@@ -192,7 +197,7 @@ export default function GbpSettingsPage() {
               setErr(null);
               setMsg(null);
               try {
-                const locs = await apiFetch<AvailableLoc[]>("/gbp/locations/available", { token });
+                const locs = await apiFetch<GbpAvailableLocation[]>("/gbp/locations/available", { token });
                 setAvailable(locs);
                 setMsg(`${locs.length}件のロケーションを取得しました`);
               } catch (e2: any) {
@@ -253,7 +258,7 @@ export default function GbpSettingsPage() {
               setMsg(null);
               try {
                 const chosen = available.filter((a) => selected[keyOf(a)]);
-                const saved = await apiFetch<LocationRow[]>("/gbp/locations/select", {
+                const saved = await apiFetch<GbpLocationResponse[]>("/gbp/locations/select", {
                   method: "POST",
                   token,
                   body: JSON.stringify({

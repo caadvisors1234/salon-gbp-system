@@ -9,17 +9,7 @@ import Button from "../components/Button";
 import FormField, { inputClass, selectClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconTrash } from "../components/icons";
-
-type IgAccount = {
-  id: string;
-  ig_user_id: string;
-  ig_username: string;
-  account_type: string;
-  staff_name?: string | null;
-  token_expires_at: string;
-  is_active: boolean;
-  sync_hashtags: boolean;
-};
+import type { InstagramAccountResponse } from "../types/api";
 
 export default function InstagramSettingsPage() {
   const { session } = useAuth();
@@ -27,9 +17,10 @@ export default function InstagramSettingsPage() {
   const [search] = useSearchParams();
   const oauth = search.get("oauth");
   const added = search.get("added");
-  const [accounts, setAccounts] = useState<IgAccount[]>([]);
+  const [accounts, setAccounts] = useState<InstagramAccountResponse[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [staffName, setStaffName] = useState("");
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     ig_user_id: "",
@@ -45,15 +36,20 @@ export default function InstagramSettingsPage() {
     document.title = "Instagram設定 | サロンGBP管理";
   }, []);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     if (!token) return;
-    const res = await apiFetch<IgAccount[]>("/instagram/accounts", { token });
+    const res = await apiFetch<InstagramAccountResponse[]>("/instagram/accounts", { token, signal });
     setAccounts(res);
   };
 
   useEffect(() => {
     if (!token) return;
-    load().catch((e) => setErr(e?.message ?? String(e)));
+    const ac = new AbortController();
+    load(ac.signal).catch((e) => {
+      if (e.name === "AbortError") return;
+      setErr(e?.message ?? String(e));
+    });
+    return () => ac.abort();
   }, [token]);
 
   return (
@@ -122,7 +118,7 @@ export default function InstagramSettingsPage() {
             if (!token) return;
             setErr(null);
             try {
-              await apiFetch<IgAccount>("/instagram/accounts", {
+              await apiFetch<InstagramAccountResponse>("/instagram/accounts", {
                 method: "POST",
                 token,
                 body: JSON.stringify({
@@ -190,15 +186,23 @@ export default function InstagramSettingsPage() {
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-stone-300 text-pink-600"
+                        disabled={actioningId !== null}
                         checked={a.is_active}
-                        onChange={async (e) => {
+                        onChange={async () => {
                           if (!token) return;
-                          const updated = await apiFetch<IgAccount>(`/instagram/accounts/${a.id}`, {
-                            method: "PATCH",
-                            token,
-                            body: JSON.stringify({ is_active: e.target.checked })
-                          });
-                          setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
+                          setActioningId(`active:${a.id}`);
+                          try {
+                            const updated = await apiFetch<InstagramAccountResponse>(`/instagram/accounts/${a.id}`, {
+                              method: "PATCH",
+                              token,
+                              body: JSON.stringify({ is_active: !a.is_active })
+                            });
+                            setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
+                          } catch (ex: any) {
+                            setErr(ex?.message ?? String(ex));
+                          } finally {
+                            setActioningId(null);
+                          }
                         }}
                       />
                     </td>
@@ -211,15 +215,23 @@ export default function InstagramSettingsPage() {
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-stone-300 text-pink-600"
+                        disabled={actioningId !== null}
                         checked={a.sync_hashtags}
-                        onChange={async (e) => {
+                        onChange={async () => {
                           if (!token) return;
-                          const updated = await apiFetch<IgAccount>(`/instagram/accounts/${a.id}`, {
-                            method: "PATCH",
-                            token,
-                            body: JSON.stringify({ sync_hashtags: e.target.checked })
-                          });
-                          setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
+                          setActioningId(`hash:${a.id}`);
+                          try {
+                            const updated = await apiFetch<InstagramAccountResponse>(`/instagram/accounts/${a.id}`, {
+                              method: "PATCH",
+                              token,
+                              body: JSON.stringify({ sync_hashtags: !a.sync_hashtags })
+                            });
+                            setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
+                          } catch (ex: any) {
+                            setErr(ex?.message ?? String(ex));
+                          } finally {
+                            setActioningId(null);
+                          }
                         }}
                       />
                     </td>
@@ -227,12 +239,21 @@ export default function InstagramSettingsPage() {
                       <Button
                         variant="ghost"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1"
+                        aria-label="アカウントを削除"
+                        loading={actioningId === `del:${a.id}`}
+                        disabled={actioningId !== null}
                         onClick={async () => {
                           if (!token) return;
-                          // eslint-disable-next-line no-alert
                           if (!confirm("このアカウントを削除しますか？")) return;
-                          await apiFetch<void>(`/instagram/accounts/${a.id}`, { method: "DELETE", token });
-                          await load();
+                          setActioningId(`del:${a.id}`);
+                          try {
+                            await apiFetch<void>(`/instagram/accounts/${a.id}`, { method: "DELETE", token });
+                            await load();
+                          } catch (ex: any) {
+                            setErr(ex?.message ?? String(ex));
+                          } finally {
+                            setActioningId(null);
+                          }
                         }}
                       >
                         <IconTrash className="h-4 w-4" />

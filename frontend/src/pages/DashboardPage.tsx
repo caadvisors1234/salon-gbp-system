@@ -9,17 +9,14 @@ import Alert from "../components/Alert";
 import { SkeletonCard } from "../components/Skeleton";
 import { IconAlert as IconAlertIcon, IconPosts, IconSettings } from "../components/icons";
 import { formatRelative } from "../lib/format";
-
-type AlertItem = { id: string; severity: string; alert_type: string; message: string; status: string; created_at: string };
-type Post = { id: string; status: string; post_type: string; summary_final: string; created_at: string };
-type Me = { email: string; role: string; salon_id: string | null };
+import type { MeResponse, AlertResponse, PostListItem } from "../types/api";
 
 export default function DashboardPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [me, setMe] = useState<Me | null>(null);
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
+  const [pendingPosts, setPendingPosts] = useState<PostListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -29,20 +26,27 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!token) return;
+    const ac = new AbortController();
     setErr(null);
     setLoading(true);
     Promise.all([
-      apiFetch<Me>("/me", { token }),
-      apiFetch<AlertItem[]>("/alerts?status=open", { token }),
-      apiFetch<Post[]>("/posts?status=pending&limit=50", { token })
+      apiFetch<MeResponse>("/me", { token, signal: ac.signal }),
+      apiFetch<AlertResponse[]>("/alerts?status=open", { token, signal: ac.signal }),
+      apiFetch<PostListItem[]>("/posts?status=pending&limit=50", { token, signal: ac.signal })
     ])
       .then(([meRes, alertsRes, postsRes]) => {
         setMe(meRes);
         setAlerts(alertsRes);
         setPendingPosts(postsRes);
       })
-      .catch((e) => setErr(e?.message ?? String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setErr(e?.message ?? String(e));
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
+      });
+    return () => ac.abort();
   }, [token]);
 
   if (loading) {

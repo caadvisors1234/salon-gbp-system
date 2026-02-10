@@ -9,15 +9,13 @@ import Button from "../components/Button";
 import FormField, { inputClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
-
-type Me = { role: string };
-type Salon = { id: string; name: string; slug: string; is_active: boolean };
+import type { MeResponse, SalonResponse } from "../types/api";
 
 export default function AdminSalonsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [me, setMe] = useState<Me | null>(null);
-  const [salons, setSalons] = useState<Salon[]>([]);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [salons, setSalons] = useState<SalonResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", slug: "" });
@@ -26,30 +24,35 @@ export default function AdminSalonsPage() {
     document.title = "テナント管理 | サロンGBP管理";
   }, []);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     if (!token) return;
     setLoading(true);
     try {
-      const [meRes, salonsRes] = await Promise.all([apiFetch<Me>("/me", { token }), apiFetch<Salon[]>("/admin/salons", { token })]);
+      const [meRes, salonsRes] = await Promise.all([
+        apiFetch<MeResponse>("/me", { token, signal }),
+        apiFetch<SalonResponse[]>("/admin/salons", { token, signal }),
+      ]);
       setMe(meRes);
       setSalons(salonsRes);
     } catch (e: any) {
+      if (e.name === "AbortError") return;
       setErr(e?.message ?? String(e));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
   }, [token]);
 
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
   }
 
-  const columns: Column<Salon>[] = [
+  const columns: Column<SalonResponse>[] = [
     {
       key: "name",
       header: "サロン名",

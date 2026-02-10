@@ -98,7 +98,7 @@ export default function Sidebar({
         <Link to="/dashboard" className="text-lg font-bold text-pink-600" onClick={onClose}>
           Salon GBP
         </Link>
-        <button className="md:hidden rounded-lg p-1 hover:bg-stone-100" onClick={onClose}>
+        <button className="md:hidden rounded-lg p-1 hover:bg-stone-100" aria-label="メニューを閉じる" onClick={onClose}>
           <IconX className="h-5 w-5 text-stone-500" />
         </button>
       </div>
@@ -164,8 +164,8 @@ export default function Sidebar({
       {/* Mobile overlay */}
       {open && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
-          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl animate-slide-in">
+          <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} aria-hidden="true" />
+          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl animate-slide-in" role="dialog" aria-label="ナビゲーション">
             {nav}
           </aside>
         </>

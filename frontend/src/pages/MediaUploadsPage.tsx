@@ -7,47 +7,41 @@ import Badge, { statusVariant } from "../components/Badge";
 import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
-
-type Upload = {
-  id: string;
-  status: string;
-  media_format: string;
-  category: string;
-  source_image_url: string;
-  created_at: string;
-  error_message?: string | null;
-};
+import type { MediaUploadListItem } from "../types/api";
 
 export default function MediaUploadsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [uploads, setUploads] = useState<Upload[]>([]);
+  const [uploads, setUploads] = useState<MediaUploadListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = "メディア | サロンGBP管理";
   }, []);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await apiFetch<Upload[]>("/media_uploads?status=pending&limit=200", { token });
+      const res = await apiFetch<MediaUploadListItem[]>("/media_uploads?status=pending&limit=200", { token, signal });
       setUploads(res);
     } catch (e: any) {
+      if (e.name === "AbortError") return;
       setErr(e?.message ?? String(e));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
   }, [token]);
 
-  const columns: Column<Upload>[] = [
+  const columns: Column<MediaUploadListItem>[] = [
     {
       key: "status",
       header: "ステータス",
@@ -76,11 +70,21 @@ export default function MediaUploadsPage() {
         <Button
           variant="primary"
           className="text-xs px-3 py-1.5"
+          loading={actioningId === u.id}
+          disabled={actioningId !== null}
           onClick={async (e) => {
             e.stopPropagation();
             if (!token) return;
-            await apiFetch<Upload>(`/media_uploads/${u.id}/approve`, { method: "POST", token });
-            await load();
+            setActioningId(u.id);
+            setErr(null);
+            try {
+              await apiFetch<MediaUploadListItem>(`/media_uploads/${u.id}/approve`, { method: "POST", token });
+              await load();
+            } catch (ex: any) {
+              setErr(ex?.message ?? String(ex));
+            } finally {
+              setActioningId(null);
+            }
           }}
         >
           承認

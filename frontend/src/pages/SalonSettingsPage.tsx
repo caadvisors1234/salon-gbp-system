@@ -7,18 +7,7 @@ import Button from "../components/Button";
 import FormField, { inputClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconSpinner } from "../components/icons";
-
-type Salon = {
-  id: string;
-  name: string;
-  slug: string;
-  hotpepper_salon_id?: string | null;
-  hotpepper_blog_url?: string | null;
-  hotpepper_style_url?: string | null;
-  hotpepper_coupon_url?: string | null;
-  hotpepper_top_url?: string | null;
-  is_active: boolean;
-};
+import type { SalonResponse } from "../types/api";
 
 // NOTE: パターンはバックエンド (schemas/salon.py _HOTPEPPER_RE) と同一。
 // URL形式変更時は両方を更新すること。
@@ -51,7 +40,7 @@ function HotpepperPreview({ url }: { url: string }) {
 export default function SalonSettingsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [salon, setSalon] = useState<Salon | null>(null);
+  const [salon, setSalon] = useState<SalonResponse | null>(null);
   const [savedTopUrl, setSavedTopUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -63,12 +52,17 @@ export default function SalonSettingsPage() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch<Salon>("/salon/settings", { token })
+    const ac = new AbortController();
+    apiFetch<SalonResponse>("/salon/settings", { token, signal: ac.signal })
       .then((data) => {
         setSalon(data);
         setSavedTopUrl(data.hotpepper_top_url ?? null);
       })
-      .catch((e) => setErr(e?.message ?? String(e)));
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setErr(e?.message ?? String(e));
+      });
+    return () => ac.abort();
   }, [token]);
 
   if (!salon) {
@@ -110,7 +104,7 @@ export default function SalonSettingsPage() {
             try {
               const topUrlChanged = (salon.hotpepper_top_url ?? null) !== savedTopUrl;
               // hotpepper_top_url: 未送信(省略)=変更なし, ""=連携解除, URL文字列=更新
-              const updated = await apiFetch<Salon>("/salon/settings", {
+              const updated = await apiFetch<SalonResponse>("/salon/settings", {
                 method: "PUT",
                 token,
                 body: JSON.stringify({

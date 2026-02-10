@@ -7,23 +7,13 @@ import Badge, { statusVariant } from "../components/Badge";
 import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
-
-type Me = { role: string };
-type Item = {
-  salon_id: string;
-  slug: string;
-  name: string;
-  is_active: boolean;
-  open_alerts: number;
-  gbp_connection_status: string;
-  active_locations: number;
-};
+import type { MeResponse, SalonMonitorItem } from "../types/api";
 
 export default function AdminMonitorPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [me, setMe] = useState<Me | null>(null);
-  const [items, setItems] = useState<Item[]>([]);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [items, setItems] = useState<SalonMonitorItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -31,30 +21,35 @@ export default function AdminMonitorPage() {
     document.title = "モニター | サロンGBP管理";
   }, []);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     if (!token) return;
     setLoading(true);
     try {
-      const [meRes, monitorRes] = await Promise.all([apiFetch<Me>("/me", { token }), apiFetch<Item[]>("/admin/monitor", { token })]);
+      const [meRes, monitorRes] = await Promise.all([
+        apiFetch<MeResponse>("/me", { token, signal }),
+        apiFetch<SalonMonitorItem[]>("/admin/monitor", { token, signal }),
+      ]);
       setMe(meRes);
       setItems(monitorRes);
     } catch (e: any) {
+      if (e.name === "AbortError") return;
       setErr(e?.message ?? String(e));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
   }, [token]);
 
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
   }
 
-  const columns: Column<Item>[] = [
+  const columns: Column<SalonMonitorItem>[] = [
     {
       key: "slug",
       header: "スラグ",

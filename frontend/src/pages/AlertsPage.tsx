@@ -9,20 +9,12 @@ import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
 import { selectClass } from "../components/FormField";
 import { formatDateTime } from "../lib/format";
-
-type AlertItem = {
-  id: string;
-  severity: string;
-  alert_type: string;
-  message: string;
-  status: string;
-  created_at: string;
-};
+import type { AlertResponse } from "../types/api";
 
 export default function AlertsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("open");
@@ -32,25 +24,27 @@ export default function AlertsPage() {
     document.title = "アラート | サロンGBP管理";
   }, []);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await apiFetch<AlertItem[]>(`/alerts?status=${encodeURIComponent(statusFilter)}`, { token });
+      const res = await apiFetch<AlertResponse[]>(`/alerts?status=${encodeURIComponent(statusFilter)}`, { token, signal });
       setAlerts(res);
     } catch (e: any) {
+      if (e.name === "AbortError") return;
       setErr(e?.message ?? String(e));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
   }, [token, statusFilter]);
 
-  const columns: Column<AlertItem>[] = [
+  const columns: Column<AlertResponse>[] = [
     {
       key: "severity",
       header: "重要度",

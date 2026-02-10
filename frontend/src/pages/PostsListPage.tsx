@@ -7,22 +7,13 @@ import DataTable, { Column } from "../components/DataTable";
 import Badge, { statusVariant } from "../components/Badge";
 import Alert from "../components/Alert";
 import { formatDateTime } from "../lib/format";
-
-type Post = {
-  id: string;
-  status: string;
-  post_type: string;
-  summary_final: string;
-  created_at: string;
-  posted_at?: string | null;
-  error_message?: string | null;
-};
+import type { PostListItem } from "../types/api";
 
 export default function PostsListPage({ kind }: { kind: "pending" | "history" }) {
   const { session } = useAuth();
   const token = session?.access_token;
   const navigate = useNavigate();
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<PostListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -34,10 +25,11 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
 
   useEffect(() => {
     if (!token) return;
+    const ac = new AbortController();
     setErr(null);
     setLoading(true);
     const path = kind === "pending" ? "/posts?status=pending&limit=200" : "/posts?limit=200";
-    apiFetch<Post[]>(path, { token })
+    apiFetch<PostListItem[]>(path, { token, signal: ac.signal })
       .then((res) => {
         const filtered =
           kind === "pending"
@@ -45,11 +37,17 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
             : res.filter((p) => !["pending", "queued", "posting"].includes(p.status));
         setPosts(filtered);
       })
-      .catch((e) => setErr(e?.message ?? String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setErr(e?.message ?? String(e));
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
+      });
+    return () => ac.abort();
   }, [token, kind]);
 
-  const columns: Column<Post>[] = [
+  const columns: Column<PostListItem>[] = [
     {
       key: "status",
       header: "ステータス",
