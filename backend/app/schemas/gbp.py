@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.enums import ConnectionStatus
+
 
 class GbpConnectionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -13,7 +15,7 @@ class GbpConnectionResponse(BaseModel):
     salon_id: uuid.UUID
     google_account_email: str
     token_expires_at: datetime
-    status: str
+    status: ConnectionStatus
 
 
 class GbpAvailableLocation(BaseModel):

@@ -17,6 +17,8 @@ router = APIRouter()
 @router.get("", response_model=list[AlertResponse])
 def list_alerts(
     status_filter: str | None = Query(default="open", alias="status"),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
 ) -> list[AlertResponse]:
@@ -24,14 +26,13 @@ def list_alerts(
     if user.is_super_admin():
         if status_filter:
             q = q.filter(Alert.status == status_filter)
-        alerts = q.order_by(Alert.created_at.desc()).limit(200).all()
-        return [AlertResponse.model_validate(a) for a in alerts]
+    else:
+        salon_id = require_salon(user)
+        q = q.filter((Alert.salon_id == salon_id) | (Alert.salon_id.is_(None)))
+        if status_filter:
+            q = q.filter(Alert.status == status_filter)
 
-    salon_id = require_salon(user)
-    q = q.filter((Alert.salon_id == salon_id) | (Alert.salon_id.is_(None)))
-    if status_filter:
-        q = q.filter(Alert.status == status_filter)
-    alerts = q.order_by(Alert.created_at.desc()).limit(200).all()
+    alerts = q.order_by(Alert.created_at.desc()).offset(offset).limit(limit).all()
     return [AlertResponse.model_validate(a) for a in alerts]
 
 

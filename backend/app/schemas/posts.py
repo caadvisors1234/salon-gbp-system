@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.enums import PostStatus, PostType
+
 
 class PostListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -13,8 +15,8 @@ class PostListItem(BaseModel):
     salon_id: uuid.UUID
     gbp_location_id: uuid.UUID
     source_content_id: uuid.UUID
-    post_type: str
-    status: str
+    post_type: PostType
+    status: PostStatus
     summary_final: str
     cta_url: str | None = None
     image_asset_id: uuid.UUID | None = None

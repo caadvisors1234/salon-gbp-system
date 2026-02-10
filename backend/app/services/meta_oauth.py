@@ -73,6 +73,28 @@ def exchange_for_long_lived_token(settings: Settings, *, short_lived_token: str)
     )
 
 
+def refresh_long_lived_token(settings: Settings, *, current_token: str) -> MetaTokenResponse:
+    """Re-exchange a valid long-lived token for a new one (extends expiry)."""
+    params = {
+        "grant_type": "fb_exchange_token",
+        "client_id": settings.meta_app_id,
+        "client_secret": settings.meta_app_secret,
+        "fb_exchange_token": current_token,
+    }
+    with httpx.Client(timeout=15) as client:
+        r = client.get(META_TOKEN_URL, params=params)
+        r.raise_for_status()
+        data: dict[str, Any] = r.json()
+    access_token = str(data.get("access_token") or "")
+    expires_in = int(data.get("expires_in") or 60 * 24 * 60 * 60)
+    if not access_token:
+        raise RuntimeError("Meta token refresh did not return access_token")
+    return MetaTokenResponse(
+        access_token=access_token,
+        expires_at=datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in),
+    )
+
+
 def discover_instagram_accounts(*, access_token: str) -> list[dict[str, str]]:
     """
     Best-effort discovery:

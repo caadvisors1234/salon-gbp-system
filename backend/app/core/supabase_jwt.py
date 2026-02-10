@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -8,6 +9,8 @@ from typing import Any
 import httpx
 import jwt
 from jwt import InvalidTokenError
+
+logger = logging.getLogger(__name__)
 
 
 class SupabaseAuthError(RuntimeError):
@@ -34,8 +37,11 @@ def _fetch_jwks(jwks_url: str) -> dict[str, Any]:
         with httpx.Client(timeout=10) as client:
             r = client.get(jwks_url)
             r.raise_for_status()
-            return r.json()
+            data = r.json()
+            logger.info("JWKS fetched successfully from %s, keys=%d", jwks_url, len(data.get("keys", [])))
+            return data
     except httpx.HTTPError:
+        logger.warning("JWKS fetch failed from %s", jwks_url)
         return {"keys": []}
 
 
@@ -43,6 +49,13 @@ def get_jwks(jwks_url: str) -> dict[str, Any]:
     if _cache.is_valid():
         return _cache.jwks or {}
     jwks = _fetch_jwks(jwks_url)
+    keys = jwks.get("keys", [])
+    if not keys and _cache.jwks and _cache.jwks.get("keys"):
+        # Fetch returned empty keys but we have a valid previous cache.
+        # Keep old keys and retry sooner (60s) instead of caching empty for 600s.
+        logger.warning("JWKS fetch returned empty keys, keeping previous cache")
+        _cache.fetched_at = time.time() - _cache.ttl_sec + 60
+        return _cache.jwks
     _cache.jwks = jwks
     _cache.fetched_at = time.time()
     return jwks

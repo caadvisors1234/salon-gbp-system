@@ -3,9 +3,11 @@ from __future__ import annotations
 from celery import Celery
 
 from app.core.config import get_settings
+from app.core.logging import setup_logging
 
 
 settings = get_settings()
+setup_logging(settings.log_level, app_env=settings.app_env)
 
 celery_app = Celery(
     "salon_gbp_system",
@@ -36,6 +38,10 @@ celery_app.conf.beat_schedule = {
     },
     "cleanup-media-assets-daily": {
         "task": "app.worker.tasks.cleanup_media_assets",
+        "schedule": 24 * 60 * 60,
+    },
+    "refresh-instagram-tokens-daily": {
+        "task": "app.worker.tasks.refresh_instagram_tokens",
         "schedule": 24 * 60 * 60,
     },
 }

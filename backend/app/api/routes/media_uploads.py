@@ -19,6 +19,7 @@ router = APIRouter()
 def list_uploads(
     status_filter: str | None = Query(default=None, alias="status"),
     salon_id: uuid.UUID | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
@@ -32,7 +33,7 @@ def list_uploads(
     if status_filter:
         q = q.filter(GbpMediaUpload.status == status_filter)
 
-    ups = q.order_by(GbpMediaUpload.created_at.desc()).limit(limit).all()
+    ups = q.order_by(GbpMediaUpload.created_at.desc()).offset(offset).limit(limit).all()
     return [MediaUploadListItem.model_validate(u) for u in ups]
 
 

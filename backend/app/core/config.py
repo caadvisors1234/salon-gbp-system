@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # Scraping
     scraper_user_agent: str = "SalonGBPSystem/0.1"
 
+    # Database connection pool
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_recycle: int = 1800
+
     log_level: str = "INFO"
 
     @field_validator("api_cors_origins", mode="before")

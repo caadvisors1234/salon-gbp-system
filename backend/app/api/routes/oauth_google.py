@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
@@ -47,7 +48,7 @@ def google_oauth_callback(
     settings = get_settings()
     redirect_base = settings.app_public_base_url.rstrip("/")
     if error:
-        return RedirectResponse(url=f"{redirect_base}/settings/gbp?oauth=error&reason={error}")
+        return RedirectResponse(url=f"{redirect_base}/settings/gbp?oauth=error&reason={quote(error, safe='')}")
     if not code or not state:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing code/state")
 

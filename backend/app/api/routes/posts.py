@@ -19,6 +19,7 @@ router = APIRouter()
 def list_posts(
     status_filter: str | None = Query(default=None, alias="status"),
     salon_id: uuid.UUID | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
@@ -33,7 +34,7 @@ def list_posts(
     if status_filter:
         q = q.filter(GbpPost.status == status_filter)
 
-    posts = q.order_by(GbpPost.created_at.desc()).limit(limit).all()
+    posts = q.order_by(GbpPost.created_at.desc()).offset(offset).limit(limit).all()
     return [PostListItem.model_validate(p) for p in posts]
 
 

@@ -7,6 +7,8 @@ import httpx
 
 
 GBP_BASE_V4 = "https://mybusiness.googleapis.com/v4"
+GBP_ACCOUNT_MGMT = "https://mybusinessaccountmanagement.googleapis.com/v1"
+GBP_BUSINESS_INFO = "https://mybusinessbusinessinformation.googleapis.com/v1"
 
 
 @dataclass(frozen=True)
@@ -21,11 +23,8 @@ def _auth_headers(access_token: str) -> dict[str, str]:
 
 
 def list_accounts(*, access_token: str) -> list[str]:
-    """
-    Best-effort account listing. The actual endpoint may vary by GBP API family.
-    This implements the v4-style endpoint referenced in requirements.
-    """
-    url = f"{GBP_BASE_V4}/accounts"
+    """List GBP accounts using the Account Management API v1."""
+    url = f"{GBP_ACCOUNT_MGMT}/accounts"
     with httpx.Client(timeout=20) as client:
         r = client.get(url, headers=_auth_headers(access_token))
         r.raise_for_status()
@@ -33,8 +32,7 @@ def list_accounts(*, access_token: str) -> list[str]:
     accounts = data.get("accounts") or []
     out: list[str] = []
     for a in accounts:
-        # v4 sometimes uses "name": "accounts/123"
-        name = str(a.get("name") or a.get("accountName") or "")
+        name = str(a.get("name") or "")
         if name.startswith("accounts/"):
             out.append(name.split("/", 1)[1])
         elif name:
@@ -43,9 +41,11 @@ def list_accounts(*, access_token: str) -> list[str]:
 
 
 def list_locations(*, access_token: str, account_id: str) -> list[GbpLocationInfo]:
-    url = f"{GBP_BASE_V4}/accounts/{account_id}/locations"
+    """List locations using the Business Information API v1."""
+    url = f"{GBP_BUSINESS_INFO}/accounts/{account_id}/locations"
+    params = {"readMask": "name,title,storeCode"}
     with httpx.Client(timeout=30) as client:
-        r = client.get(url, headers=_auth_headers(access_token))
+        r = client.get(url, headers=_auth_headers(access_token), params=params)
         r.raise_for_status()
         data: dict[str, Any] = r.json()
 
@@ -54,11 +54,11 @@ def list_locations(*, access_token: str, account_id: str) -> list[GbpLocationInf
     for loc in locations:
         name = str(loc.get("name") or "")
         location_id = ""
-        if "/locations/" in name:
-            location_id = name.split("/locations/", 1)[1]
-        else:
+        if "locations/" in name:
+            location_id = name.rsplit("locations/", 1)[1].lstrip("/")
+        if not location_id:
             location_id = str(loc.get("locationId") or name)
-        location_name = loc.get("locationName") or loc.get("title") or loc.get("storeCode")
+        location_name = loc.get("title") or loc.get("storeCode")
         out.append(GbpLocationInfo(account_id=account_id, location_id=location_id, location_name=location_name))
     return out
 
@@ -113,4 +113,3 @@ def upload_media(
         r = client.post(url, headers=_auth_headers(access_token), json=body)
         r.raise_for_status()
         return r.json()
-

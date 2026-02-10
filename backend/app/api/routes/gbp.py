@@ -97,41 +97,41 @@ def select_locations(
     if conn is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="GBP is not connected")
 
-    # Deactivate all first; then upsert selections.
+    # Atomically deactivate all, then upsert selections in one transaction.
     db.query(GbpLocation).filter(GbpLocation.salon_id == salon_id).update({"is_active": False})
-    db.commit()
 
     results: list[GbpLocation] = []
     for item in payload.locations:
-        loc = (
-            db.query(GbpLocation)
-            .filter(GbpLocation.salon_id == salon_id)
-            .filter(GbpLocation.account_id == item.account_id)
-            .filter(GbpLocation.location_id == item.location_id)
-            .one_or_none()
-        )
-        if loc is None:
-            loc = GbpLocation(
-                salon_id=salon_id,
-                gbp_connection_id=conn.id,
-                account_id=item.account_id,
-                location_id=item.location_id,
-                location_name=item.location_name,
-                is_active=item.is_active,
-            )
-        else:
-            loc.location_name = item.location_name
-            loc.is_active = item.is_active
-            loc.gbp_connection_id = conn.id
-
-        db.add(loc)
         try:
-            db.commit()
+            with db.begin_nested():
+                loc = (
+                    db.query(GbpLocation)
+                    .filter(GbpLocation.salon_id == salon_id)
+                    .filter(GbpLocation.account_id == item.account_id)
+                    .filter(GbpLocation.location_id == item.location_id)
+                    .one_or_none()
+                )
+                if loc is None:
+                    loc = GbpLocation(
+                        salon_id=salon_id,
+                        gbp_connection_id=conn.id,
+                        account_id=item.account_id,
+                        location_id=item.location_id,
+                        location_name=item.location_name,
+                        is_active=item.is_active,
+                    )
+                else:
+                    loc.location_name = item.location_name
+                    loc.is_active = item.is_active
+                    loc.gbp_connection_id = conn.id
+                db.add(loc)
+            results.append(loc)
         except IntegrityError:
-            db.rollback()
             continue
+
+    db.commit()
+    for loc in results:
         db.refresh(loc)
-        results.append(loc)
 
     return [GbpLocationResponse.model_validate(l) for l in results]
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 
@@ -11,6 +12,8 @@ from app.core.config import get_settings
 from app.core.supabase_jwt import SupabaseAuthError, verify_jwt
 from app.db.session import SessionLocal
 from app.models.user import AppUser
+
+logger = logging.getLogger(__name__)
 
 
 security = HTTPBearer(auto_error=False)
@@ -63,6 +66,7 @@ def get_current_user(
             issuer=settings.resolved_supabase_issuer() or None,
         )
     except SupabaseAuthError as e:
+        logger.warning("Authentication failed: %s", e)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
 
     supabase_user_id = _parse_uuid(str(claims.get("sub", "")), field="sub")

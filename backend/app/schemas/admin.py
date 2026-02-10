@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -16,7 +17,7 @@ class AdminUserAssignRequest(BaseModel):
     supabase_user_id: uuid.UUID
     email: EmailStr
     salon_id: uuid.UUID | None = None
-    role: str = Field(default="staff", max_length=20)
+    role: Literal["staff", "salon_admin", "super_admin"] = "staff"
     display_name: str | None = Field(default=None, max_length=100)
     is_active: bool = True
 

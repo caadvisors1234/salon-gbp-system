@@ -1,19 +1,20 @@
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
-from sqlalchemy import and_
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
+
 from app.core.config import get_settings
-from app.core.crypto import decrypt_str
+from app.core.crypto import decrypt_str, encrypt_str
 from app.db.session import SessionLocal
 from app.models.gbp_connection import GbpConnection
 from app.models.gbp_location import GbpLocation
@@ -31,6 +32,7 @@ from app.scrapers.text_transform import hotpepper_blog_to_gbp, instagram_caption
 from app.services import gbp_client
 from app.services.alerts import create_alert
 from app.services.gbp_tokens import get_access_token
+from app.services.meta_oauth import refresh_long_lived_token
 from app.services.media_storage import (
     cleanup_old_assets,
     create_pending_asset,
@@ -39,6 +41,7 @@ from app.services.media_storage import (
     mark_asset_failed,
 )
 from app.worker.celery_app import celery_app
+from app.worker.scraper_helpers import create_gbp_posts_for_source, create_media_uploads_for_source
 
 
 def _now() -> datetime:
@@ -76,15 +79,6 @@ def _finish_job(
     job.completed_at = _now()
     db.add(job)
     db.commit()
-
-
-def _active_gbp_locations(db: Session, salon_id: uuid.UUID) -> list[GbpLocation]:
-    return (
-        db.query(GbpLocation)
-        .filter(GbpLocation.salon_id == salon_id)
-        .filter(GbpLocation.is_active.is_(True))
-        .all()
-    )
 
 
 def _salon_blog_url(salon: Salon) -> str | None:
@@ -143,6 +137,52 @@ def cleanup_media_assets() -> dict[str, Any]:
     with SessionLocal() as db:
         deleted = cleanup_old_assets(db)
     return {"deleted": deleted}
+
+
+@celery_app.task(name="app.worker.tasks.refresh_instagram_tokens")
+def refresh_instagram_tokens() -> dict[str, Any]:
+    """Refresh Instagram long-lived tokens expiring within 14 days."""
+    from datetime import timedelta
+
+    settings = get_settings()
+    refreshed = 0
+    failed = 0
+    with SessionLocal() as db:
+        threshold = _now() + timedelta(days=14)
+        accounts = (
+            db.query(InstagramAccount)
+            .filter(InstagramAccount.is_active.is_(True))
+            .filter(InstagramAccount.token_expires_at <= threshold)
+            .all()
+        )
+        logger.info("refresh_instagram_tokens: %d accounts to refresh", len(accounts))
+        for acc in accounts:
+            try:
+                current_token = decrypt_str(acc.access_token_enc, settings.token_enc_key_b64)
+                new_token = refresh_long_lived_token(settings, current_token=current_token)
+                acc.access_token_enc = encrypt_str(new_token.access_token, settings.token_enc_key_b64)
+                acc.token_expires_at = new_token.expires_at
+                db.add(acc)
+                db.commit()
+                refreshed += 1
+                logger.info("Refreshed Instagram token for account %s (%s)", acc.ig_username, acc.id)
+            except Exception as e:  # noqa: BLE001
+                db.rollback()
+                failed += 1
+                logger.error("Failed to refresh Instagram token for %s: %s", acc.ig_username, e)
+                try:
+                    create_alert(
+                        db,
+                        salon_id=acc.salon_id,
+                        severity="critical",
+                        alert_type="instagram_token_expiring",
+                        message=f"Instagram token refresh failed for {acc.ig_username}. Re-authenticate required: {e}",
+                        entity_type="instagram_account",
+                        entity_id=acc.id,
+                    )
+                except Exception:
+                    pass
+    return {"refreshed": refreshed, "failed": failed}
 
 
 @celery_app.task(name="app.worker.tasks.scrape_hotpepper_blog")
@@ -211,37 +251,17 @@ def scrape_hotpepper_blog() -> dict[str, Any]:
                             image_asset_id = asset.id
                             download_media_asset.delay(str(asset.id))
 
-                        locations = _active_gbp_locations(db, salon.id)
-                        for loc in locations:
-                            dup = (
-                                db.query(GbpPost)
-                                .filter(GbpPost.salon_id == salon.id)
-                                .filter(GbpPost.gbp_location_id == loc.id)
-                                .filter(GbpPost.source_content_id == sc.id)
-                                .filter(GbpPost.post_type == "STANDARD")
-                                .one_or_none()
-                            )
-                            if dup:
-                                continue
-                            post = GbpPost(
-                                salon_id=salon.id,
-                                source_content_id=sc.id,
-                                gbp_location_id=loc.id,
-                                post_type="STANDARD",
-                                summary_generated=summary,
-                                summary_final=summary,
-                                image_asset_id=image_asset_id,
-                                cta_type="LEARN_MORE",
-                                cta_url=article.url,
-                                offer_redeem_online_url=None,
-                                status="pending",
-                                error_message=None,
-                                posted_at=None,
-                                edited_by=None,
-                                edited_at=None,
-                                gbp_post_id=None,
-                            )
-                            db.add(post)
+                        create_gbp_posts_for_source(
+                            db,
+                            salon_id=salon.id,
+                            sc=sc,
+                            summary=summary,
+                            image_asset_id=image_asset_id,
+                            post_type="STANDARD",
+                            cta_type="LEARN_MORE",
+                            cta_url=article.url,
+                            offer_redeem_online_url=None,
+                        )
                         db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
@@ -321,32 +341,15 @@ def scrape_hotpepper_style() -> dict[str, Any]:
                         asset = create_pending_asset(db, salon_id=salon.id, source_url=img.image_url)
                         download_media_asset.delay(str(asset.id))
 
-                        locations = _active_gbp_locations(db, salon.id)
-                        for loc in locations:
-                            dup = (
-                                db.query(GbpMediaUpload)
-                                .filter(GbpMediaUpload.salon_id == salon.id)
-                                .filter(GbpMediaUpload.gbp_location_id == loc.id)
-                                .filter(GbpMediaUpload.source_content_id == sc.id)
-                                .filter(GbpMediaUpload.media_asset_id == asset.id)
-                                .one_or_none()
-                            )
-                            if dup:
-                                continue
-                            up = GbpMediaUpload(
-                                salon_id=salon.id,
-                                source_content_id=sc.id,
-                                gbp_location_id=loc.id,
-                                media_asset_id=asset.id,
-                                media_format="PHOTO",
-                                category="ADDITIONAL",
-                                source_image_url=img.image_url,
-                                status="pending",
-                                error_message=None,
-                                uploaded_at=None,
-                                gbp_media_name=None,
-                            )
-                            db.add(up)
+                        create_media_uploads_for_source(
+                            db,
+                            salon_id=salon.id,
+                            sc=sc,
+                            media_asset_id=asset.id,
+                            source_image_url=img.image_url,
+                            category="ADDITIONAL",
+                            media_format="PHOTO",
+                        )
                         db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
@@ -427,37 +430,17 @@ def scrape_hotpepper_coupon() -> dict[str, Any]:
                         # Keep within 1500.
                         summary = summary[:1500]
 
-                        locations = _active_gbp_locations(db, salon.id)
-                        for loc in locations:
-                            dup = (
-                                db.query(GbpPost)
-                                .filter(GbpPost.salon_id == salon.id)
-                                .filter(GbpPost.gbp_location_id == loc.id)
-                                .filter(GbpPost.source_content_id == sc.id)
-                                .filter(GbpPost.post_type == "OFFER")
-                                .one_or_none()
-                            )
-                            if dup:
-                                continue
-                            post = GbpPost(
-                                salon_id=salon.id,
-                                source_content_id=sc.id,
-                                gbp_location_id=loc.id,
-                                post_type="OFFER",
-                                summary_generated=summary,
-                                summary_final=summary,
-                                image_asset_id=None,
-                                cta_type=None,
-                                cta_url=None,
-                                offer_redeem_online_url=coupon_url,
-                                status="pending",
-                                error_message=None,
-                                posted_at=None,
-                                edited_by=None,
-                                edited_at=None,
-                                gbp_post_id=None,
-                            )
-                            db.add(post)
+                        create_gbp_posts_for_source(
+                            db,
+                            salon_id=salon.id,
+                            sc=sc,
+                            summary=summary,
+                            image_asset_id=None,
+                            post_type="OFFER",
+                            cta_type=None,
+                            cta_url=None,
+                            offer_redeem_online_url=coupon_url,
+                        )
                         db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
@@ -570,37 +553,17 @@ def fetch_instagram_media() -> dict[str, Any]:
                             sync_hashtags=bool(acc.sync_hashtags),
                         )
 
-                        locations = _active_gbp_locations(db, acc.salon_id)
-                        for loc in locations:
-                            dup = (
-                                db.query(GbpPost)
-                                .filter(GbpPost.salon_id == acc.salon_id)
-                                .filter(GbpPost.gbp_location_id == loc.id)
-                                .filter(GbpPost.source_content_id == sc.id)
-                                .filter(GbpPost.post_type == "STANDARD")
-                                .one_or_none()
-                            )
-                            if dup:
-                                continue
-                            post = GbpPost(
-                                salon_id=acc.salon_id,
-                                source_content_id=sc.id,
-                                gbp_location_id=loc.id,
-                                post_type="STANDARD",
-                                summary_generated=summary,
-                                summary_final=summary,
-                                image_asset_id=image_asset_id,
-                                cta_type="LEARN_MORE",
-                                cta_url=permalink or None,
-                                offer_redeem_online_url=None,
-                                status="pending",
-                                error_message=None,
-                                posted_at=None,
-                                edited_by=None,
-                                edited_at=None,
-                                gbp_post_id=None,
-                            )
-                            db.add(post)
+                        create_gbp_posts_for_source(
+                            db,
+                            salon_id=acc.salon_id,
+                            sc=sc,
+                            summary=summary,
+                            image_asset_id=image_asset_id,
+                            post_type="STANDARD",
+                            cta_type="LEARN_MORE",
+                            cta_url=permalink or None,
+                            offer_redeem_online_url=None,
+                        )
                         db.commit()
                         processed += 1
                     except Exception as e:  # noqa: BLE001
@@ -625,17 +588,22 @@ def fetch_instagram_media() -> dict[str, Any]:
 
 @celery_app.task(name="app.worker.tasks.post_gbp_post", bind=True, max_retries=5)
 def post_gbp_post(self, gbp_post_id: str) -> None:
+    logger.info("post_gbp_post started post_id=%s", gbp_post_id)
     with SessionLocal() as db:
-        post = db.query(GbpPost).filter(GbpPost.id == uuid.UUID(gbp_post_id)).one_or_none()
-        if post is None:
-            return
-        if post.status not in ("queued", "pending"):
-            return
-        prev_status = post.status
-        post.status = "posting"
-        db.add(post)
+        # CAS: atomically claim the post for processing
+        result = db.execute(
+            update(GbpPost)
+            .where(GbpPost.id == uuid.UUID(gbp_post_id))
+            .where(GbpPost.status.in_(["queued", "pending"]))
+            .values(status="posting")
+            .returning(GbpPost.id)
+        )
+        row = result.fetchone()
         db.commit()
-        db.refresh(post)
+        if row is None:
+            logger.info("post_gbp_post skipped (already processed) post_id=%s", gbp_post_id)
+            return
+        post = db.query(GbpPost).filter(GbpPost.id == uuid.UUID(gbp_post_id)).one()
 
         loc = db.query(GbpLocation).filter(GbpLocation.id == post.gbp_location_id).one()
         conn = db.query(GbpConnection).filter(GbpConnection.id == loc.gbp_connection_id).one()
@@ -665,23 +633,29 @@ def post_gbp_post(self, gbp_post_id: str) -> None:
             post.error_message = None
             db.add(post)
             db.commit()
+            logger.info("post_gbp_post completed post_id=%s", gbp_post_id)
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
             if status_code == 429:
                 countdown = min(600, 30 * (2 ** self.request.retries))
-                # Reset to a retryable state so the retried task doesn't get blocked
-                # by the status guard at the top of the task.
-                post.status = prev_status
-                post.error_message = None
-                db.add(post)
+                logger.warning("post_gbp_post rate limited (429), retrying in %ds post_id=%s", countdown, gbp_post_id)
+                # CAS: atomically reset to retryable state
+                db.execute(
+                    update(GbpPost)
+                    .where(GbpPost.id == uuid.UUID(gbp_post_id))
+                    .where(GbpPost.status == "posting")
+                    .values(status="queued", error_message=None)
+                )
                 db.commit()
                 try:
                     raise self.retry(countdown=countdown) from e
                 except MaxRetriesExceededError:
+                    post = db.query(GbpPost).filter(GbpPost.id == uuid.UUID(gbp_post_id)).one()
                     post.status = "failed"
                     post.error_message = "GBP API rate limited (429) - max retries exceeded"
                     db.add(post)
                     db.commit()
+                    logger.error("post_gbp_post max retries exceeded post_id=%s", gbp_post_id)
                     raise
             if status_code == 401:
                 conn.status = "expired"
@@ -700,11 +674,13 @@ def post_gbp_post(self, gbp_post_id: str) -> None:
             post.error_message = f"GBP API error: {status_code}"
             db.add(post)
             db.commit()
+            logger.error("post_gbp_post failed status=%d post_id=%s", status_code, gbp_post_id)
         except Exception as e:  # noqa: BLE001
             post.status = "failed"
             post.error_message = str(e)[:2000]
             db.add(post)
             db.commit()
+            logger.error("post_gbp_post failed post_id=%s error=%s", gbp_post_id, e)
             create_alert(
                 db,
                 salon_id=post.salon_id,
@@ -718,17 +694,22 @@ def post_gbp_post(self, gbp_post_id: str) -> None:
 
 @celery_app.task(name="app.worker.tasks.upload_gbp_media", bind=True, max_retries=5)
 def upload_gbp_media(self, upload_id: str) -> None:
+    logger.info("upload_gbp_media started upload_id=%s", upload_id)
     with SessionLocal() as db:
-        up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == uuid.UUID(upload_id)).one_or_none()
-        if up is None:
-            return
-        if up.status not in ("queued", "pending"):
-            return
-        prev_status = up.status
-        up.status = "uploading"
-        db.add(up)
+        # CAS: atomically claim the upload for processing
+        result = db.execute(
+            update(GbpMediaUpload)
+            .where(GbpMediaUpload.id == uuid.UUID(upload_id))
+            .where(GbpMediaUpload.status.in_(["queued", "pending"]))
+            .values(status="uploading")
+            .returning(GbpMediaUpload.id)
+        )
+        row = result.fetchone()
         db.commit()
-        db.refresh(up)
+        if row is None:
+            logger.info("upload_gbp_media skipped (already processed) upload_id=%s", upload_id)
+            return
+        up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == uuid.UUID(upload_id)).one()
 
         loc = db.query(GbpLocation).filter(GbpLocation.id == up.gbp_location_id).one()
         conn = db.query(GbpConnection).filter(GbpConnection.id == loc.gbp_connection_id).one()
@@ -757,23 +738,29 @@ def upload_gbp_media(self, upload_id: str) -> None:
             up.error_message = None
             db.add(up)
             db.commit()
+            logger.info("upload_gbp_media completed upload_id=%s", upload_id)
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
             if status_code == 429:
                 countdown = min(600, 30 * (2 ** self.request.retries))
-                # Reset to a retryable state so the retried task doesn't get blocked
-                # by the status guard at the top of the task.
-                up.status = prev_status
-                up.error_message = None
-                db.add(up)
+                logger.warning("upload_gbp_media rate limited (429), retrying in %ds upload_id=%s", countdown, upload_id)
+                # CAS: atomically reset to retryable state
+                db.execute(
+                    update(GbpMediaUpload)
+                    .where(GbpMediaUpload.id == uuid.UUID(upload_id))
+                    .where(GbpMediaUpload.status == "uploading")
+                    .values(status="queued", error_message=None)
+                )
                 db.commit()
                 try:
                     raise self.retry(countdown=countdown) from e
                 except MaxRetriesExceededError:
+                    up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == uuid.UUID(upload_id)).one()
                     up.status = "failed"
                     up.error_message = "GBP API rate limited (429) - max retries exceeded"
                     db.add(up)
                     db.commit()
+                    logger.error("upload_gbp_media max retries exceeded upload_id=%s", upload_id)
                     raise
             if status_code == 401:
                 conn.status = "expired"
@@ -792,11 +779,13 @@ def upload_gbp_media(self, upload_id: str) -> None:
             up.error_message = f"GBP API error: {status_code}"
             db.add(up)
             db.commit()
+            logger.error("upload_gbp_media failed status=%d upload_id=%s", status_code, upload_id)
         except Exception as e:  # noqa: BLE001
             up.status = "failed"
             up.error_message = str(e)[:2000]
             db.add(up)
             db.commit()
+            logger.error("upload_gbp_media failed upload_id=%s error=%s", upload_id, e)
             create_alert(
                 db,
                 salon_id=up.salon_id,

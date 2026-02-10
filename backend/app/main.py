@@ -5,10 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.logging import setup_logging
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    setup_logging(settings.log_level, app_env=settings.app_env)
     app = FastAPI(title="Salon GBP System", version="0.1.0")
 
     if settings.api_cors_origins:
