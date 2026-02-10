@@ -63,7 +63,7 @@ export function pattern(re: RegExp, msg: string): Validator {
 export function hotpepperUrl(): Validator {
   return (v) => {
     if (!v) return null;
-    return /^https:\/\/beauty\.hotpepper\.jp\/slnH\d{9}\/?$/.test(v)
+    return /^https?:\/\/beauty\.hotpepper\.jp\/slnH[a-zA-Z0-9]+/.test(v)
       ? null
       : "https://beauty.hotpepper.jp/slnH... の形式で入力してください";
   };

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 import sqlalchemy as sa
@@ -21,6 +22,7 @@ from app.schemas.job_logs import JobLogResponse
 from app.schemas.monitor import SalonMonitorItem
 from app.schemas.salon import SalonResponse
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -40,13 +42,31 @@ def create_salon(
     db: Session = Depends(db_session),
     _: CurrentUser = Depends(require_roles("super_admin")),
 ) -> SalonResponse:
-    salon = Salon(name=payload.name, slug=payload.slug)
+    assert payload.slug is not None, "slug must be derived by model_validator"
+    salon = Salon(
+        name=payload.name,
+        slug=payload.slug,
+        hotpepper_salon_id=payload.hotpepper_salon_id,
+        hotpepper_blog_url=payload.hotpepper_blog_url,
+        hotpepper_style_url=payload.hotpepper_style_url,
+        hotpepper_coupon_url=payload.hotpepper_coupon_url,
+    )
     db.add(salon)
     try:
         db.commit()
     except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Salon slug already exists") from e
+        logger.warning("Salon creation IntegrityError: %s", e)
+        constraint = getattr(getattr(e, "orig", None), "diag", None)
+        constraint_name = getattr(constraint, "constraint_name", "") or ""
+        if "slug" in constraint_name:
+            detail = "このサロンIDは既に登録されています"
+        else:
+            detail = "サロンの作成に失敗しました（重複データ）"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=detail,
+        ) from e
     db.refresh(salon)
     return SalonResponse.model_validate(salon)
 

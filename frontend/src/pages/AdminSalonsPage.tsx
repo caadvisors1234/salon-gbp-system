@@ -3,7 +3,7 @@ import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
 import { useApiFetch } from "../hooks/useApiFetch";
-import { validate, required, slug as slugValidator, maxLength } from "../lib/validation";
+import { validate, required, maxLength, hotpepperUrl as hotpepperUrlValidator } from "../lib/validation";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import DataTable, { Column } from "../components/DataTable";
@@ -33,7 +33,7 @@ export default function AdminSalonsPage() {
 
   const [me, salons] = data ?? [null, []];
   const [err, setErr] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", slug: "" });
+  const [form, setForm] = useState({ name: "", hotpepper_top_url: "" });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   if (me && me.role !== "super_admin") {
@@ -42,10 +42,10 @@ export default function AdminSalonsPage() {
 
   const validateSalonForm = () => {
     const errors: Record<string, string> = {};
-    const nameErr = validate(form.name, required("サロン名"), maxLength(100));
+    const nameErr = validate(form.name, required("サロン名"), maxLength(255));
     if (nameErr) errors.name = nameErr;
-    const slugErr = validate(form.slug, required("スラグ"), slugValidator(), maxLength(50));
-    if (slugErr) errors.slug = slugErr;
+    const urlErr = validate(form.hotpepper_top_url, required("HotPepper URL"), hotpepperUrlValidator());
+    if (urlErr) errors.hotpepper_top_url = urlErr;
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -57,9 +57,11 @@ export default function AdminSalonsPage() {
       render: (s) => <span className="font-medium text-stone-900">{s.name}</span>,
     },
     {
-      key: "slug",
-      header: "スラグ",
-      render: (s) => <span className="text-stone-600">{s.slug}</span>,
+      key: "hotpepper_top_url",
+      header: "HotPepper URL",
+      render: (s) => (
+        <span className="text-stone-600 text-xs break-all">{s.hotpepper_top_url ?? "-"}</span>
+      ),
     },
   ];
 
@@ -78,7 +80,7 @@ export default function AdminSalonsPage() {
             setErr(null);
             try {
               await apiFetch("/admin/salons", { method: "POST", token, body: JSON.stringify(form) });
-              setForm({ name: "", slug: "" });
+              setForm({ name: "", hotpepper_top_url: "" });
               setFormErrors({});
               toast("success", "サロンを作成しました");
               refetch();
@@ -90,8 +92,13 @@ export default function AdminSalonsPage() {
           <FormField label="サロン名" error={formErrors.name}>
             <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </FormField>
-          <FormField label="スラグ" error={formErrors.slug}>
-            <input className={inputClass} value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
+          <FormField label="HotPepper Beauty サロンページURL" error={formErrors.hotpepper_top_url}>
+            <input
+              className={inputClass}
+              placeholder="https://beauty.hotpepper.jp/slnHXXXXXXXXX/"
+              value={form.hotpepper_top_url}
+              onChange={(e) => setForm({ ...form, hotpepper_top_url: e.target.value })}
+            />
           </FormField>
           <div className="sm:col-span-2">
             <Button variant="primary" type="submit">作成</Button>
