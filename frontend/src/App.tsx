@@ -157,7 +157,7 @@ function Shell() {
                 <Route path="/posts/:postId" element={<PostDetailPage />} />
                 <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
                 <Route path="/posts/history" element={<PostsListPage kind="history" />} />
-                <Route path="/media/pending" element={<MediaUploadsPage />} />
+                <Route path="/uploads/pending" element={<MediaUploadsPage />} />
                 <Route path="/alerts" element={<AlertsPage />} />
                 <Route path="/admin/salons" element={<AdminSalonsPage />} />
                 <Route path="/admin/monitor" element={<AdminMonitorPage />} />

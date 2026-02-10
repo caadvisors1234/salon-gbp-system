@@ -44,7 +44,7 @@ const sections: NavSection[] = [
     items: [
       { label: "承認待ち投稿", to: "/posts/pending", icon: <IconPosts className={iconCls} /> },
       { label: "投稿履歴", to: "/posts/history", icon: <IconHistory className={iconCls} /> },
-      { label: "メディア", to: "/media/pending", icon: <IconMedia className={iconCls} /> },
+      { label: "メディア", to: "/uploads/pending", icon: <IconMedia className={iconCls} /> },
     ],
   },
   {
