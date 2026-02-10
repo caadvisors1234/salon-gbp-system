@@ -29,11 +29,3 @@ class Alert(Base, UUIDPrimaryKeyMixin, CreatedAtMixin, OptionalSalonScopedMixin)
         nullable=True,
     )
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("app_users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-

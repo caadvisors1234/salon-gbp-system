@@ -21,7 +21,5 @@ class AlertResponse(BaseModel):
     status: AlertStatus
     acked_by: uuid.UUID | None = None
     acked_at: datetime | None = None
-    resolved_by: uuid.UUID | None = None
-    resolved_at: datetime | None = None
     created_at: datetime
 

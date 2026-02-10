@@ -33,7 +33,6 @@ export function statusVariant(status: string): BadgeVariant {
   switch (status) {
     case "posted":
     case "uploaded":
-    case "resolved":
     case "active":
     case "completed":
     case "success":

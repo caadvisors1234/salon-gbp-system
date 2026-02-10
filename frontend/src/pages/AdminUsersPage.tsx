@@ -3,13 +3,13 @@ import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
 import { useApiFetch } from "../hooks/useApiFetch";
-import { validate, required, email as emailValidator, uuid as uuidValidator, minLength } from "../lib/validation";
+import { validate, required, email as emailValidator, minLength } from "../lib/validation";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import DataTable, { Column } from "../components/DataTable";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
-import FormField, { inputClass, selectClass, checkboxClass } from "../components/FormField";
+import FormField, { inputClass, selectClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconRefresh, IconTrash } from "../components/icons";
 import { roleLabel, translateError } from "../lib/labels";
@@ -48,17 +48,6 @@ export default function AdminUsersPage() {
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [inviteLoading, setInviteLoading] = useState(false);
 
-  // Assign form state
-  const [form, setForm] = useState({
-    supabase_user_id: "",
-    email: "",
-    salon_id: "",
-    role: "staff",
-    display_name: "",
-    is_active: true,
-  });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
   }
@@ -72,16 +61,6 @@ export default function AdminUsersPage() {
       if (pwErr) errors.password = pwErr;
     }
     setInviteErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const validateUserForm = () => {
-    const errors: Record<string, string> = {};
-    const uuidErr = validate(form.supabase_user_id, required("ユーザーID"), uuidValidator());
-    if (uuidErr) errors.supabase_user_id = uuidErr;
-    const emailErr = validate(form.email, required("メールアドレス"), emailValidator());
-    if (emailErr) errors.email = emailErr;
-    setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
@@ -216,70 +195,6 @@ export default function AdminUsersPage() {
             <Button variant="primary" type="submit" disabled={inviteLoading}>
               {inviteLoading ? "招待中..." : "招待"}
             </Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card title="手動ユーザー割り当て（上級者向け）">
-        <form
-          className="grid gap-4 sm:grid-cols-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!validateUserForm()) return;
-            if (!token) return;
-            setErr(null);
-            try {
-              await apiFetch("/admin/users/assign", {
-                method: "POST",
-                token,
-                body: JSON.stringify({
-                  supabase_user_id: form.supabase_user_id,
-                  email: form.email,
-                  salon_id: form.salon_id || null,
-                  role: form.role,
-                  display_name: form.display_name || null,
-                  is_active: form.is_active,
-                }),
-              });
-              setForm({ ...form, supabase_user_id: "", email: "" });
-              setFormErrors({});
-              toast("success", "ユーザーを保存しました");
-              refetch();
-            } catch (e2: unknown) {
-              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
-            }
-          }}
-        >
-          <FormField label="認証システム ユーザーID" className="sm:col-span-2" error={formErrors.supabase_user_id}>
-            <input className={inputClass} value={form.supabase_user_id} onChange={(e) => setForm({ ...form, supabase_user_id: e.target.value })} />
-          </FormField>
-          <FormField label="メールアドレス" className="sm:col-span-2" error={formErrors.email}>
-            <input type="email" className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          </FormField>
-          <FormField label="サロン">
-            <select className={selectClass} value={form.salon_id} onChange={(e) => setForm({ ...form, salon_id: e.target.value })}>
-              <option value="">（なし）</option>
-              {salons.map((s) => (
-                <option key={s.id} value={s.id}>{s.slug}</option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="ロール">
-            <select className={selectClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              <option value="staff">スタッフ</option>
-              <option value="salon_admin">サロン管理者</option>
-              <option value="super_admin">管理者</option>
-            </select>
-          </FormField>
-          <FormField label="表示名" className="sm:col-span-2">
-            <input className={inputClass} value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} />
-          </FormField>
-          <label className="flex items-center gap-2 text-sm text-stone-700 sm:col-span-2">
-            <input type="checkbox" className={checkboxClass} checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
-            有効
-          </label>
-          <div className="sm:col-span-2">
-            <Button variant="primary" type="submit">保存</Button>
           </div>
         </form>
       </Card>

@@ -44,9 +44,8 @@
 - `POST /media_uploads/{upload_id}/skip`
 
 ## Alerts
-- `GET /alerts?status=open|acked|resolved`
+- `GET /alerts?status=open|acked`
 - `POST /alerts/{alert_id}/ack`
-- `POST /alerts/{alert_id}/resolve`
 
 ## Instagram（暫定: 手動登録）
 - `GET /instagram/accounts`
@@ -58,4 +57,4 @@
 - `GET /admin/salons`
 - `POST /admin/salons`
 - `GET /admin/users`
-- `POST /admin/users/assign`
+- `POST /admin/users/invite`

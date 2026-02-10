@@ -41,14 +41,3 @@ def ack_alert(db: Session, alert: Alert, *, user_id: uuid.UUID) -> Alert:
     db.commit()
     db.refresh(alert)
     return alert
-
-
-def resolve_alert(db: Session, alert: Alert, *, user_id: uuid.UUID) -> Alert:
-    alert.status = "resolved"
-    alert.resolved_by = user_id
-    alert.resolved_at = datetime.now(tz=timezone.utc)
-    db.add(alert)
-    db.commit()
-    db.refresh(alert)
-    return alert
-

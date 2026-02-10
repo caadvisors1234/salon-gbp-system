@@ -4,7 +4,7 @@ import { apiFetch } from "../lib/api";
 import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
-import Badge, { severityVariant, statusVariant } from "../components/Badge";
+import Badge, { severityVariant } from "../components/Badge";
 import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
@@ -52,18 +52,17 @@ export default function AlertsPage() {
       header: "発生日時",
       render: (a) => <span className="text-xs text-stone-500">{formatDateTime(a.created_at)}</span>,
     },
-    {
-      key: "actions",
-      header: "",
-      render: (a) => (
-        <div className="flex items-center gap-1">
-          {a.status === "open" && (
+    ...(statusFilter === "open"
+      ? [{
+          key: "actions" as const,
+          header: "",
+          render: (a: AlertResponse) => (
             <Button
               variant="secondary"
               className="text-xs px-2 py-1"
               loading={actioningId === `ack:${a.id}`}
               disabled={actioningId !== null}
-              onClick={async (e) => {
+              onClick={async (e: React.MouseEvent) => {
                 e.stopPropagation();
                 if (!token) return;
                 setActioningId(`ack:${a.id}`);
@@ -80,34 +79,9 @@ export default function AlertsPage() {
             >
               確認
             </Button>
-          )}
-          {a.status !== "resolved" && (
-            <Button
-              variant="ghost"
-              className="text-xs px-2 py-1"
-              loading={actioningId === `resolve:${a.id}`}
-              disabled={actioningId !== null}
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (!token) return;
-                setActioningId(`resolve:${a.id}`);
-                setErr(null);
-                try {
-                  await apiFetch(`/alerts/${a.id}/resolve`, { method: "POST", token });
-                  refetch();
-                } catch (ex: unknown) {
-                  setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
-                } finally {
-                  setActioningId(null);
-                }
-              }}
-            >
-              解決
-            </Button>
-          )}
-        </div>
-      ),
-    },
+          ),
+        }]
+      : []),
   ];
 
   return (
@@ -124,7 +98,6 @@ export default function AlertsPage() {
             >
               <option value="open">未対応</option>
               <option value="acked">確認済み</option>
-              <option value="resolved">解決済み</option>
             </select>
             <Button variant="secondary" onClick={refetch} aria-label="再読込">
               <IconRefresh className="h-4 w-4" />

@@ -64,11 +64,13 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
       header: "作成日時",
       render: (p) => <span className="text-xs text-stone-500">{formatDateTime(p.created_at)}</span>,
     },
-    {
-      key: "posted",
-      header: "投稿日時",
-      render: (p) => <span className="text-xs text-stone-500">{formatDateTime(p.posted_at)}</span>,
-    },
+    ...(kind === "history"
+      ? [{
+            key: "posted" as const,
+            header: "投稿日時",
+            render: (p: PostListItem) => <span className="text-xs text-stone-500">{formatDateTime(p.posted_at)}</span>,
+        }]
+      : []),
     ...(kind === "pending"
       ? [
           {
@@ -110,7 +112,7 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
       {(error || err) && <Alert variant="error" message={error || err!} />}
       <DataTable
         columns={columns}
-        data={posts}
+        data={posts ?? []}
         rowKey={(p) => p.id}
         loading={loading}
         emptyMessage={kind === "pending" ? "承認待ちの投稿はありません" : "投稿データがありません"}

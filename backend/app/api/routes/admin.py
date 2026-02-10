@@ -15,7 +15,7 @@ from app.models.job_log import JobLog
 from app.models.salon import Salon
 from app.models.user import AppUser
 from app.core.config import get_settings
-from app.schemas.admin import AdminSalonCreate, AdminUserAssignRequest, AdminUserInviteRequest, AppUserResponse
+from app.schemas.admin import AdminSalonCreate, AdminUserInviteRequest, AppUserResponse
 from app.services import supabase_admin
 from app.schemas.job_logs import JobLogResponse
 from app.schemas.monitor import SalonMonitorItem
@@ -119,35 +119,6 @@ def invite_user(
             status_code=status.HTTP_409_CONFLICT,
             detail="User already exists (duplicate supabase_user_id or email)",
         ) from e
-    db.refresh(user)
-    return AppUserResponse.model_validate(user)
-
-
-@router.post("/users/assign", response_model=AppUserResponse)
-def assign_user(
-    payload: AdminUserAssignRequest,
-    db: Session = Depends(db_session),
-    _: CurrentUser = Depends(require_roles("super_admin")),
-) -> AppUserResponse:
-    user = db.query(AppUser).filter(AppUser.supabase_user_id == payload.supabase_user_id).one_or_none()
-    if user is None:
-        user = AppUser(
-            supabase_user_id=payload.supabase_user_id,
-            email=str(payload.email),
-            salon_id=payload.salon_id,
-            role=payload.role,
-            display_name=payload.display_name,
-            is_active=payload.is_active,
-        )
-    else:
-        user.email = str(payload.email)
-        user.salon_id = payload.salon_id
-        user.role = payload.role
-        user.display_name = payload.display_name
-        user.is_active = payload.is_active
-
-    db.add(user)
-    db.commit()
     db.refresh(user)
     return AppUserResponse.model_validate(user)
 

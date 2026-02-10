@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import CurrentUser, db_session, get_current_user, require_salon
 from app.models.alert import Alert
 from app.schemas.alerts import AlertResponse
-from app.services.alerts import ack_alert, resolve_alert
+from app.services.alerts import ack_alert
 
 
 router = APIRouter()
@@ -50,22 +50,5 @@ def ack(
         if alert.salon_id not in (None, salon_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     alert = ack_alert(db, alert, user_id=user.id)
-    return AlertResponse.model_validate(alert)
-
-
-@router.post("/{alert_id}/resolve", response_model=AlertResponse)
-def resolve(
-    alert_id: uuid.UUID,
-    db: Session = Depends(db_session),
-    user: CurrentUser = Depends(get_current_user),
-) -> AlertResponse:
-    alert = db.query(Alert).filter(Alert.id == alert_id).one_or_none()
-    if alert is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
-    if not user.is_super_admin():
-        salon_id = require_salon(user)
-        if alert.salon_id not in (None, salon_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
-    alert = resolve_alert(db, alert, user_id=user.id)
     return AlertResponse.model_validate(alert)
 

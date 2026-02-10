@@ -7,7 +7,6 @@ import { validate, required, slug as slugValidator, maxLength } from "../lib/val
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import DataTable, { Column } from "../components/DataTable";
-import Badge from "../components/Badge";
 import Button from "../components/Button";
 import FormField, { inputClass } from "../components/FormField";
 import Alert from "../components/Alert";
@@ -61,11 +60,6 @@ export default function AdminSalonsPage() {
       key: "slug",
       header: "スラグ",
       render: (s) => <span className="text-stone-600">{s.slug}</span>,
-    },
-    {
-      key: "active",
-      header: "ステータス",
-      render: (s) => <Badge variant={s.is_active ? "success" : "default"}>{s.is_active ? "有効" : "無効"}</Badge>,
     },
   ];
 

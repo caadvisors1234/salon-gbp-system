@@ -51,8 +51,6 @@ const alerts: AlertResponse[] = [
     status: "open",
     acked_by: null,
     acked_at: null,
-    resolved_by: null,
-    resolved_at: null,
     created_at: new Date().toISOString(),
   },
 ];

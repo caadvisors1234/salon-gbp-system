@@ -62,8 +62,6 @@ export interface AlertResponse {
   status: string;
   acked_by: string | null;
   acked_at: string | null;
-  resolved_by: string | null;
-  resolved_at: string | null;
   created_at: string;
 }
 

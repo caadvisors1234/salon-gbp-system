@@ -89,7 +89,7 @@ class TestAlertResponse:
             AlertResponse(**self._base(severity="fatal"))
 
     def test_valid_alert_status(self):
-        for s in ("open", "acked", "resolved"):
+        for s in ("open", "acked"):
             AlertResponse(**self._base(status=s))
 
     def test_invalid_alert_status(self):
