@@ -30,7 +30,7 @@ describe("Sidebar", () => {
 
   it("hides admin items for non-super-admin", () => {
     renderSidebar({ role: "staff" });
-    expect(screen.queryByText("テナント管理")).not.toBeInTheDocument();
+    expect(screen.queryByText("サロン管理")).not.toBeInTheDocument();
     expect(screen.queryByText("ユーザー管理")).not.toBeInTheDocument();
     expect(screen.queryByText("モニター")).not.toBeInTheDocument();
     expect(screen.queryByText("ジョブログ")).not.toBeInTheDocument();
@@ -38,7 +38,7 @@ describe("Sidebar", () => {
 
   it("shows admin items for super_admin", () => {
     renderSidebar({ role: "super_admin" });
-    expect(screen.getByText("テナント管理")).toBeInTheDocument();
+    expect(screen.getByText("サロン管理")).toBeInTheDocument();
     expect(screen.getByText("ユーザー管理")).toBeInTheDocument();
     expect(screen.getByText("モニター")).toBeInTheDocument();
     expect(screen.getByText("ジョブログ")).toBeInTheDocument();

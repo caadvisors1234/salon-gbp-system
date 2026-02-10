@@ -152,6 +152,44 @@ def assign_user(
     return AppUserResponse.model_validate(user)
 
 
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    db: Session = Depends(db_session),
+    current_user: CurrentUser = Depends(require_roles("super_admin")),
+) -> dict[str, str]:
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID")
+
+    if current_user.supabase_user_id == uid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete yourself",
+        )
+
+    user = db.query(AppUser).filter(AppUser.supabase_user_id == uid).one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Delete from Supabase first to avoid orphaned auth users
+    settings = get_settings()
+    if settings.supabase_service_role_key:
+        try:
+            supabase_admin.delete_user(settings, user_id=user_id)
+        except supabase_admin.SupabaseAdminError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Supabase user deletion failed: {exc.message}",
+            ) from exc
+
+    db.delete(user)
+    db.commit()
+
+    return {"status": "ok"}
+
+
 @router.get("/job_logs", response_model=list[JobLogResponse])
 def list_job_logs(
     limit: int = 200,

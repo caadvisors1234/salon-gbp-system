@@ -74,9 +74,8 @@ export default function AdminJobLogsPage() {
         title="ジョブログ"
         description="スケジュールタスクの実行履歴"
         action={
-          <Button variant="secondary" onClick={refetch}>
+          <Button variant="secondary" onClick={refetch} aria-label="再読込">
             <IconRefresh className="h-4 w-4" />
-            再読込
           </Button>
         }
       />

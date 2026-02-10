@@ -33,6 +33,7 @@ export default function AlertsPage() {
     {
       key: "severity",
       header: "重要度",
+      className: "min-w-[5rem]",
       render: (a) => <Badge variant={severityVariant(a.severity)}>{severityLabel(a.severity)}</Badge>,
     },
     {
@@ -125,9 +126,8 @@ export default function AlertsPage() {
               <option value="acked">確認済み</option>
               <option value="resolved">解決済み</option>
             </select>
-            <Button variant="secondary" onClick={refetch}>
+            <Button variant="secondary" onClick={refetch} aria-label="再読込">
               <IconRefresh className="h-4 w-4" />
-              再読込
             </Button>
           </div>
         }

@@ -9,11 +9,11 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Badge, { statusVariant } from "../components/Badge";
 import Button from "../components/Button";
-import FormField, { inputClass, textareaClass } from "../components/FormField";
+import FormField, { inputClass, selectClass, textareaClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconSpinner } from "../components/icons";
 import { formatDateTime } from "../lib/format";
-import { statusLabel, postTypeLabel, translateError } from "../lib/labels";
+import { statusLabel, postTypeLabel, translateError, CTA_TYPE_OPTIONS } from "../lib/labels";
 import type { PostDetail } from "../types/api";
 
 export default function PostDetailPage() {
@@ -133,11 +133,15 @@ export default function PostDetailPage() {
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <FormField label="ボタンの種類">
-            <input
-              className={inputClass}
+            <select
+              className={selectClass}
               value={post.cta_type ?? ""}
               onChange={(e) => setPost({ ...post, cta_type: e.target.value || null })}
-            />
+            >
+              {CTA_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </FormField>
           <FormField label="ボタンのリンク先URL" error={fieldErrors.cta_url}>
             <input

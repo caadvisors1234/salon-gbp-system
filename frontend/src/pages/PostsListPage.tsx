@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useToast } from "../lib/toast";
 import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
-import Badge, { statusVariant } from "../components/Badge";
+import Badge, { statusVariant, postTypeVariant } from "../components/Badge";
+import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { formatDateTime } from "../lib/format";
 import { statusLabel, postTypeLabel, translateError } from "../lib/labels";
@@ -12,24 +15,24 @@ import type { PostListItem } from "../types/api";
 
 export default function PostsListPage({ kind }: { kind: "pending" | "history" }) {
   const navigate = useNavigate();
+  const { session } = useAuth();
+  const token = session?.access_token;
+  const { toast } = useToast();
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const title = kind === "pending" ? "承認待ち投稿" : "投稿履歴";
 
   useEffect(() => {
     document.title = `${title} | サロンGBP管理`;
   }, [title]);
 
-  const path = kind === "pending" ? "/posts?status=pending&limit=200" : "/posts?limit=200";
-  const { data: rawPosts, loading, error } = useApiFetch<PostListItem[]>(
+  const path = kind === "pending"
+    ? "/posts?status=pending&limit=200"
+    : "/posts?exclude_status=pending,queued,posting&limit=200";
+  const { data: posts, loading, error, refetch } = useApiFetch<PostListItem[]>(
     (token, signal) => apiFetch(path, { token, signal }),
     [kind],
   );
-
-  const posts = useMemo(() => {
-    if (!rawPosts) return [];
-    return kind === "pending"
-      ? rawPosts
-      : rawPosts.filter((p) => !["pending", "queued", "posting"].includes(p.status));
-  }, [rawPosts, kind]);
 
   const columns: Column<PostListItem>[] = [
     {
@@ -40,7 +43,7 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
     {
       key: "type",
       header: "種別",
-      render: (p) => <span className="text-stone-600">{postTypeLabel(p.post_type)}</span>,
+      render: (p) => <Badge variant={postTypeVariant(p.post_type)}>{postTypeLabel(p.post_type)}</Badge>,
     },
     {
       key: "summary",
@@ -66,12 +69,45 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
       header: "投稿日時",
       render: (p) => <span className="text-xs text-stone-500">{formatDateTime(p.posted_at)}</span>,
     },
+    ...(kind === "pending"
+      ? [
+          {
+            key: "approve" as const,
+            header: "",
+            render: (p: PostListItem) => (
+              <Button
+                variant="primary"
+                className="text-xs px-3 py-1.5"
+                loading={approvingId === p.id}
+                disabled={approvingId !== null}
+                onClick={async (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (!token) return;
+                  setApprovingId(p.id);
+                  setErr(null);
+                  try {
+                    await apiFetch(`/posts/${p.id}/approve`, { method: "POST", token });
+                    toast("success", "承認しました");
+                    refetch();
+                  } catch (ex: unknown) {
+                    setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
+                  } finally {
+                    setApprovingId(null);
+                  }
+                }}
+              >
+                承認
+              </Button>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
     <div className="space-y-4">
       <PageHeader title={title} description="クリックして編集・承認・再試行" />
-      {error && <Alert variant="error" message={error} />}
+      {(error || err) && <Alert variant="error" message={error || err!} />}
       <DataTable
         columns={columns}
         data={posts}

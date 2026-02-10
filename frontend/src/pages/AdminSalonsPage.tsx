@@ -21,7 +21,7 @@ export default function AdminSalonsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    document.title = "テナント管理 | サロンGBP管理";
+    document.title = "サロン管理 | サロンGBP管理";
   }, []);
 
   const { data, loading, error, refetch } = useApiFetch<[MeResponse, SalonResponse[]]>(
@@ -71,7 +71,7 @@ export default function AdminSalonsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="テナント管理" />
+      <PageHeader title="サロン管理" />
       {(error || err) && <Alert variant="error" message={error || err!} dismissible onDismiss={() => setErr(null)} />}
 
       <Card title="サロンを作成">
@@ -107,9 +107,8 @@ export default function AdminSalonsPage() {
 
       <div className="flex items-center justify-between">
         <h2 className="font-medium text-stone-900">サロン一覧</h2>
-        <Button variant="secondary" onClick={refetch}>
+        <Button variant="secondary" onClick={refetch} aria-label="再読込">
           <IconRefresh className="h-4 w-4" />
-          再読込
         </Button>
       </div>
       <DataTable

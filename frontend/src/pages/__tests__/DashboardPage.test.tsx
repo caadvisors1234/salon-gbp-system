@@ -65,7 +65,7 @@ const posts: PostListItem[] = [
     source_content_id: "sc1",
     post_type: "STANDARD",
     status: "pending",
-    summary_final: "Test post",
+    summary_final: "Test post summary for the dashboard display",
     cta_url: null,
     image_asset_id: null,
     error_message: null,
@@ -117,7 +117,9 @@ describe("DashboardPage", () => {
       expect(screen.getByText("未対応アラート")).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByText("承認待ち投稿")).toBeInTheDocument();
+      // "承認待ち投稿" appears in both the count card and the card section title
+      const pendingLabels = screen.getAllByText("承認待ち投稿");
+      expect(pendingLabels.length).toBeGreaterThanOrEqual(1);
     });
     // Count values rendered as text
     const countElements = screen.getAllByText("1");
@@ -133,7 +135,7 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("displays recent alerts section", async () => {
+  it("displays pending posts section", async () => {
     mockApiFetch.mockImplementation((url: string) => {
       if (url.includes("/me")) return Promise.resolve(me);
       if (url.includes("/alerts")) return Promise.resolve(alerts);
@@ -143,8 +145,10 @@ describe("DashboardPage", () => {
 
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("最近のアラート")).toBeInTheDocument();
+      // Card title for pending posts section
+      const cards = screen.getAllByText("承認待ち投稿");
+      expect(cards.length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.getByText("GBPトークンが期限切れです")).toBeInTheDocument();
+    expect(screen.getByText("Test post summary for the dashboard display")).toBeInTheDocument();
   });
 });

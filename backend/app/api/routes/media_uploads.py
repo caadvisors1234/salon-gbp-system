@@ -18,6 +18,7 @@ router = APIRouter()
 @router.get("", response_model=list[MediaUploadListItem])
 def list_uploads(
     status_filter: str | None = Query(default=None, alias="status"),
+    exclude_status: str | None = Query(default=None),
     salon_id: uuid.UUID | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
@@ -32,6 +33,9 @@ def list_uploads(
         q = q.filter(GbpMediaUpload.salon_id == require_salon(user))
     if status_filter:
         q = q.filter(GbpMediaUpload.status == status_filter)
+    if exclude_status:
+        excluded = [s.strip() for s in exclude_status.split(",") if s.strip()]
+        q = q.filter(GbpMediaUpload.status.notin_(excluded))
 
     ups = q.order_by(GbpMediaUpload.created_at.desc()).offset(offset).limit(limit).all()
     return [MediaUploadListItem.model_validate(u) for u in ups]

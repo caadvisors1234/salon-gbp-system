@@ -83,6 +83,30 @@ def create_user(
     return SupabaseUser(id=payload["id"], email=payload.get("email", email))
 
 
+def delete_user(settings: Settings, *, user_id: str) -> None:
+    try:
+        with httpx.Client(timeout=15) as client:
+            r = client.delete(
+                f"{_base_url(settings)}/auth/v1/admin/users/{user_id}",
+                headers=_headers(settings),
+            )
+    except httpx.HTTPError as exc:
+        raise SupabaseAdminError(0, f"Supabase Admin API request failed: {exc}") from exc
+
+    # 404 means user was already deleted — treat as success for idempotency
+    if r.status_code == 404:
+        return
+
+    if r.status_code >= 400:
+        detail = ""
+        try:
+            data = r.json()
+            detail = data.get("msg", "") or data.get("message", "") or str(data)
+        except Exception:
+            detail = r.text
+        raise SupabaseAdminError(r.status_code, detail)
+
+
 def get_user_by_email(settings: Settings, *, email: str) -> SupabaseUser | None:
     # WARNING: Supabase GoTrue Admin API does not support server-side email filtering.
     # This function scans all users page-by-page (up to 50k users). For large user bases

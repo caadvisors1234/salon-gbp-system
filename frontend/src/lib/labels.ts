@@ -133,6 +133,22 @@ export function alertTypeLabel(type: string): string {
   return ALERT_TYPE_LABELS[type] ?? humanizeAlertType(type);
 }
 
+export const CTA_TYPE_OPTIONS = [
+  { value: "", label: "（なし）" },
+  { value: "BOOK", label: "予約" },
+  { value: "ORDER", label: "注文" },
+  { value: "SHOP", label: "ショップ" },
+  { value: "LEARN_MORE", label: "詳細を見る" },
+  { value: "SIGN_UP", label: "登録" },
+  { value: "CALL", label: "電話" },
+] as const;
+
+export function ctaTypeLabel(type: string | null): string {
+  if (!type) return "（なし）";
+  const option = CTA_TYPE_OPTIONS.find((o) => o.value === type);
+  return option ? option.label : type;
+}
+
 const CONNECTION_STATUS_LABELS: Record<string, string> = {
   active: "接続中",
   expired: "期限切れ",

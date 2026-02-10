@@ -72,9 +72,8 @@ export default function AdminMonitorPage() {
         title="モニター"
         description="サロンごとの接続・アラート概況"
         action={
-          <Button variant="secondary" onClick={refetch}>
+          <Button variant="secondary" onClick={refetch} aria-label="再読込">
             <IconRefresh className="h-4 w-4" />
-            再読込
           </Button>
         }
       />

@@ -45,6 +45,7 @@ const sections: NavSection[] = [
       { label: "承認待ち投稿", to: "/posts/pending", icon: <IconPosts className={iconCls} /> },
       { label: "投稿履歴", to: "/posts/history", icon: <IconHistory className={iconCls} /> },
       { label: "メディア", to: "/uploads/pending", icon: <IconMedia className={iconCls} /> },
+      { label: "メディア履歴", to: "/uploads/history", icon: <IconHistory className={iconCls} /> },
     ],
   },
   {
@@ -64,7 +65,7 @@ const sections: NavSection[] = [
   {
     title: "管理者",
     items: [
-      { label: "テナント管理", to: "/admin/salons", icon: <IconStore className={iconCls} />, adminOnly: true },
+      { label: "サロン管理", to: "/admin/salons", icon: <IconStore className={iconCls} />, adminOnly: true },
       { label: "ユーザー管理", to: "/admin/users", icon: <IconUsers className={iconCls} />, adminOnly: true },
       { label: "モニター", to: "/admin/monitor", icon: <IconMonitor className={iconCls} />, adminOnly: true },
       { label: "ジョブログ", to: "/admin/job-logs", icon: <IconLogs className={iconCls} />, adminOnly: true },

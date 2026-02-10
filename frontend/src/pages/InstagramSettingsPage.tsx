@@ -33,7 +33,6 @@ export default function InstagramSettingsPage() {
   const added = search.get("added");
   const [accounts, setAccounts] = useState<InstagramAccountResponse[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [staffName, setStaffName] = useState("");
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -83,6 +82,7 @@ export default function InstagramSettingsPage() {
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="primary"
+            className="whitespace-nowrap"
             onClick={async () => {
               if (!token) return;
               try {
@@ -98,31 +98,24 @@ export default function InstagramSettingsPage() {
           >
             公式アカウント接続
           </Button>
-          <div className="flex items-center gap-2">
-            <input
-              className={`${inputClass} w-40`}
-              placeholder="スタッフ名（任意）"
-              value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-            />
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                if (!token) return;
-                try {
-                  const res = await apiFetch<{ redirect_url: string }>(
-                    `/oauth/meta/start?account_type=staff&staff_name=${encodeURIComponent(staffName)}`,
-                    { token, headers: { "x-requested-with": "fetch" } },
-                  );
-                  window.location.href = res.redirect_url;
-                } catch (e: unknown) {
-                  setErr(translateError(e instanceof Error ? e.message : String(e)));
-                }
-              }}
-            >
-              スタッフ接続
-            </Button>
-          </div>
+          <Button
+            variant="secondary"
+            className="whitespace-nowrap"
+            onClick={async () => {
+              if (!token) return;
+              try {
+                const res = await apiFetch<{ redirect_url: string }>(
+                  "/oauth/meta/start?account_type=staff",
+                  { token, headers: { "x-requested-with": "fetch" } },
+                );
+                window.location.href = res.redirect_url;
+              } catch (e: unknown) {
+                setErr(translateError(e instanceof Error ? e.message : String(e)));
+              }
+            }}
+          >
+            スタッフ接続
+          </Button>
         </div>
         <p className="mt-3 text-xs text-stone-400">本番環境ではMeta社の審査が必要です</p>
       </Card>

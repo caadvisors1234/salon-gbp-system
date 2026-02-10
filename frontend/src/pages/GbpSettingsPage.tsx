@@ -72,9 +72,8 @@ export default function GbpSettingsPage() {
         title="登録済みロケーション"
         description="登録済みのGBPロケーション"
         action={
-          <Button variant="secondary" onClick={refreshLocations}>
+          <Button variant="secondary" onClick={refreshLocations} aria-label="再読込">
             <IconRefresh className="h-4 w-4" />
-            再読込
           </Button>
         }
       >

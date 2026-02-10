@@ -11,7 +11,7 @@ import Badge from "../components/Badge";
 import Button from "../components/Button";
 import FormField, { inputClass, selectClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
-import { IconRefresh } from "../components/icons";
+import { IconRefresh, IconTrash } from "../components/icons";
 import { roleLabel, translateError } from "../lib/labels";
 import type { MeResponse, SalonResponse, AppUserResponse } from "../types/api";
 
@@ -35,6 +35,7 @@ export default function AdminUsersPage() {
 
   const [me, users, salons] = data ?? [null, [], []];
   const [err, setErr] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Invite form state
   const [inviteForm, setInviteForm] = useState({
@@ -113,6 +114,39 @@ export default function AdminUsersPage() {
       key: "supabase",
       header: "ユーザーID",
       render: (u) => <span className="text-xs text-stone-400 font-mono">{u.supabase_user_id.slice(0, 8)}...</span>,
+    },
+    {
+      key: "actions",
+      header: "操作",
+      render: (u) => {
+        if (me && u.supabase_user_id === me.supabase_user_id) return null;
+        return (
+          <Button
+            variant="ghost"
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1"
+            aria-label="ユーザーを削除"
+            loading={deletingId === u.supabase_user_id}
+            disabled={deletingId !== null}
+            onClick={async () => {
+              if (!token) return;
+              if (!confirm(`${u.email} を削除しますか？`)) return;
+              setDeletingId(u.supabase_user_id);
+              setErr(null);
+              try {
+                await apiFetch(`/admin/users/${u.supabase_user_id}`, { method: "DELETE", token });
+                toast("success", "ユーザーを削除しました");
+                refetch();
+              } catch (ex: unknown) {
+                setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
+              } finally {
+                setDeletingId(null);
+              }
+            }}
+          >
+            <IconTrash className="h-4 w-4" />
+          </Button>
+        );
+      },
     },
   ];
 
@@ -252,9 +286,8 @@ export default function AdminUsersPage() {
 
       <div className="flex items-center justify-between">
         <h2 className="font-medium text-stone-900">ユーザー一覧</h2>
-        <Button variant="secondary" onClick={refetch}>
+        <Button variant="secondary" onClick={refetch} aria-label="再読込">
           <IconRefresh className="h-4 w-4" />
-          再読込
         </Button>
       </div>
       <DataTable

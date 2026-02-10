@@ -12,6 +12,7 @@ import {
   jobTypeLabel,
   roleLabel,
   translateError,
+  ctaTypeLabel,
 } from "../labels";
 
 describe("statusLabel", () => {
@@ -127,6 +128,21 @@ describe("roleLabel", () => {
 
   it("returns original value for unknown role", () => {
     expect(roleLabel("viewer")).toBe("viewer");
+  });
+});
+
+describe("ctaTypeLabel", () => {
+  it("translates known CTA type", () => {
+    expect(ctaTypeLabel("BOOK")).toBe("予約");
+    expect(ctaTypeLabel("LEARN_MORE")).toBe("詳細を見る");
+  });
+
+  it("returns （なし） for null", () => {
+    expect(ctaTypeLabel(null)).toBe("（なし）");
+  });
+
+  it("returns original value for unknown type", () => {
+    expect(ctaTypeLabel("UNKNOWN_CTA")).toBe("UNKNOWN_CTA");
   });
 });
 

@@ -127,7 +127,7 @@ describe("GbpSettingsPage", () => {
 
   it("has refresh button for locations", async () => {
     renderPage();
-    expect(screen.getByText("再読込")).toBeInTheDocument();
+    expect(screen.getByLabelText("再読込")).toBeInTheDocument();
   });
 
   it("triggers fetch available on button click", async () => {

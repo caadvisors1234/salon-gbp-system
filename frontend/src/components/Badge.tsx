@@ -22,7 +22,7 @@ export default function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variantStyles[variant]} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${variantStyles[variant]} ${className}`}
     >
       {children}
     </span>
@@ -53,6 +53,19 @@ export function statusVariant(status: string): BadgeVariant {
     case "skipped":
     case "acked":
       return "default";
+    default:
+      return "default";
+  }
+}
+
+export function postTypeVariant(postType: string): BadgeVariant {
+  switch (postType) {
+    case "STANDARD":
+      return "info";
+    case "OFFER":
+      return "success";
+    case "EVENT":
+      return "primary";
     default:
       return "default";
   }
