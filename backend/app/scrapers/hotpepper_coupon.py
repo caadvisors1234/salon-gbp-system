@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -11,7 +12,10 @@ import httpx
 from bs4 import BeautifulSoup, Tag
 
 from app.scrapers.http_client import get
+from app.scrapers.pagination import parse_total_pages
 from app.scrapers.selector_loader import load_selectors
+
+logger = logging.getLogger(__name__)
 
 _COUPON_ID_RE = re.compile(r"couponId=(CP\d+)")
 
@@ -44,7 +48,7 @@ def _fallback_source_id(*, title: str, label: str, price: str, desc: str, cond: 
     return f"hp_coupon_{digest[:16]}"
 
 
-def fetch_coupons(*, coupon_url: str, max_pages: int = 2) -> list[CouponItem]:
+def fetch_coupons(*, coupon_url: str, max_pages: int = 20) -> list[CouponItem]:
     selectors = load_selectors("hotpepper_coupon")
     item_sel = selectors.get("list", {}).get("coupon_item") or "table.couponTable"
     title_sel = selectors.get("list", {}).get("title") or "p.couponMenuName"
@@ -56,22 +60,26 @@ def fetch_coupons(*, coupon_url: str, max_pages: int = 2) -> list[CouponItem]:
     out: list[CouponItem] = []
     seen: set[str] = set()
 
-    for page_num in range(1, max_pages + 1):
+    # Fetch page 1 to determine total pages dynamically
+    html = get(coupon_url, timeout=20).text
+    first_soup = BeautifulSoup(html, "lxml")
+    total_pages = parse_total_pages(first_soup) or 1
+    pages_to_fetch = min(total_pages, max_pages)
+    logger.info("Coupon pages_to_fetch=%d (detected=%s, max=%d)", pages_to_fetch, total_pages, max_pages)
+
+    for page_num in range(1, pages_to_fetch + 1):
         if page_num == 1:
             page_url = coupon_url
+            soup = first_soup
         else:
             page_url = coupon_url.rstrip("/") + f"/PN{page_num}.html"
             time.sleep(2)
-
-        try:
-            html = get(page_url, timeout=20).text
-        except httpx.HTTPError:
-            # HotPepper may return 4xx (e.g. 404) for non-existent PN pages.
-            # Don't fail the whole scrape; stop paginating and keep what we got.
-            if page_num > 1:
+            try:
+                html = get(page_url, timeout=20).text
+            except httpx.HTTPError:
+                logger.info("Coupon pagination stopped at page %d (HTTP error)", page_num)
                 break
-            raise
-        soup = BeautifulSoup(html, "lxml")
+            soup = BeautifulSoup(html, "lxml")
         page_items = 0
 
         for table in soup.select(item_sel):

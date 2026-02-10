@@ -298,7 +298,7 @@ def scrape_hotpepper_style() -> dict[str, Any]:
                     continue
                 time.sleep(5)
                 try:
-                    images = fetch_style_images(style_url=style_url)[:50]
+                    images = fetch_style_images(style_url=style_url)
                 except Exception as e:  # noqa: BLE001
                     create_alert(
                         db,
@@ -386,7 +386,7 @@ def scrape_hotpepper_coupon() -> dict[str, Any]:
                     continue
                 time.sleep(5)
                 try:
-                    coupons = fetch_coupons(coupon_url=coupon_url)[:50]
+                    coupons = fetch_coupons(coupon_url=coupon_url)
                 except Exception as e:  # noqa: BLE001
                     create_alert(
                         db,

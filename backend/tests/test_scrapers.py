@@ -7,6 +7,7 @@ import subprocess
 import sys
 from unittest.mock import patch
 
+from bs4 import BeautifulSoup
 import httpx
 import pytest
 import respx
@@ -14,6 +15,7 @@ import respx
 from app.scrapers.hotpepper_blog import _parse_blog_date, fetch_blog_article, fetch_blog_links
 from app.scrapers.hotpepper_coupon import fetch_coupons
 from app.scrapers.hotpepper_style import _strip_salon_prefix, fetch_style_images
+from app.scrapers.pagination import parse_total_pages
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -24,6 +26,48 @@ ROBOTS_BODY = "User-agent: *\nAllow: /\n"
 
 def _read_fixture(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+# ──────────────────────────────────────────────
+# Pagination parser
+# ──────────────────────────────────────────────
+
+
+class TestParseTotalPages:
+    def test_style_format(self):
+        html = '<html><body><span>1/37ページ</span></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        assert parse_total_pages(soup) == 37
+
+    def test_coupon_format(self):
+        html = '<html><body><span>2/3ページ</span></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        assert parse_total_pages(soup) == 3
+
+    def test_with_spaces(self):
+        html = '<html><body><span>1 / 5 ページ</span></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        assert parse_total_pages(soup) == 5
+
+    def test_single_page(self):
+        html = '<html><body><span>1/1ページ</span></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        assert parse_total_pages(soup) == 1
+
+    def test_no_indicator(self):
+        html = '<html><body><p>No pagination here</p></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        assert parse_total_pages(soup) is None
+
+    def test_empty_page(self):
+        html = '<html><body></body></html>'
+        soup = BeautifulSoup(html, "html.parser")
+        assert parse_total_pages(soup) is None
+
+    def test_from_fixture(self):
+        html = _read_fixture("style_list.html")
+        soup = BeautifulSoup(html, "html.parser")
+        assert parse_total_pages(soup) == 2
 
 
 # ──────────────────────────────────────────────
@@ -185,7 +229,8 @@ class TestFetchStyleImages:
         respx.get(style_url).mock(
             return_value=httpx.Response(200, text=_read_fixture("style_list.html"))
         )
-        images = fetch_style_images(style_url=style_url)
+        # max_pages=1 to test single page only
+        images = fetch_style_images(style_url=style_url, max_pages=1)
 
         # Should only get 3 bdImgGray images, not logo/banner
         assert len(images) == 3
@@ -197,7 +242,7 @@ class TestFetchStyleImages:
         respx.get(style_url).mock(
             return_value=httpx.Response(200, text=_read_fixture("style_list.html"))
         )
-        images = fetch_style_images(style_url=style_url)
+        images = fetch_style_images(style_url=style_url, max_pages=1)
 
         titles = [img.title for img in images]
         assert "ナチュラルボブ" in titles
@@ -214,11 +259,72 @@ class TestFetchStyleImages:
         respx.get(style_url).mock(
             return_value=httpx.Response(200, text=_read_fixture("style_list.html"))
         )
-        images = fetch_style_images(style_url=style_url)
+        images = fetch_style_images(style_url=style_url, max_pages=1)
 
         # Each image should have a detail page URL
         for img in images:
             assert "/style/L" in img.page_url
+
+    @respx.mock
+    def test_pagination(self):
+        respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
+        style_url = f"{BASE}/style/"
+        respx.get(style_url).mock(
+            return_value=httpx.Response(200, text=_read_fixture("style_list.html"))
+        )
+        respx.get(f"{style_url}PN2.html").mock(
+            return_value=httpx.Response(200, text=_read_fixture("style_list_page2.html"))
+        )
+        with patch("app.scrapers.hotpepper_style.time.sleep"):
+            images = fetch_style_images(style_url=style_url)
+        # Page 1 has 3, page 2 has 2
+        assert len(images) == 5
+        titles = [img.title for img in images]
+        assert "ミディアムウェーブ" in titles
+        assert "ショートマッシュ" in titles
+
+    @respx.mock
+    def test_pn_404_stops_pagination_without_failing(self):
+        respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
+        style_url = f"{BASE}/style/"
+        respx.get(style_url).mock(
+            return_value=httpx.Response(200, text=_read_fixture("style_list.html"))
+        )
+        pn2 = f"{style_url}PN2.html"
+        respx.get(pn2).mock(
+            return_value=httpx.Response(404, text="Not Found", request=httpx.Request("GET", pn2))
+        )
+        with patch("app.scrapers.hotpepper_style.time.sleep"):
+            images = fetch_style_images(style_url=style_url)
+        # Only page 1 results
+        assert len(images) == 3
+
+    @respx.mock
+    def test_dedup_across_pages(self):
+        """Duplicate images across pages should be de-duplicated."""
+        respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
+        style_url = f"{BASE}/style/"
+        # Both pages return the same content
+        respx.get(style_url).mock(
+            return_value=httpx.Response(200, text=_read_fixture("style_list.html"))
+        )
+        respx.get(f"{style_url}PN2.html").mock(
+            return_value=httpx.Response(200, text=_read_fixture("style_list.html"))
+        )
+        with patch("app.scrapers.hotpepper_style.time.sleep"):
+            images = fetch_style_images(style_url=style_url)
+        assert len(images) == 3
+
+    @respx.mock
+    def test_no_pagination_indicator(self):
+        """When no pagination text is found, only page 1 is fetched."""
+        respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
+        style_url = f"{BASE}/style/"
+        # Use HTML without pagination indicator
+        no_paging_html = "<html><body><div class='styleList'><div class='w156'><a href='/style/L1.html'><img class='bdImgGray' src='/images/s1.jpg' alt='T'></a></div></div></body></html>"
+        respx.get(style_url).mock(return_value=httpx.Response(200, text=no_paging_html))
+        images = fetch_style_images(style_url=style_url)
+        assert len(images) == 1
 
 
 # ──────────────────────────────────────────────
@@ -286,13 +392,30 @@ class TestFetchCoupons:
         respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
         coupon_url = f"{BASE}/coupon/"
         respx.get(coupon_url).mock(
-            return_value=httpx.Response(200, text=_read_fixture("coupon_list.html"))
+            return_value=httpx.Response(200, text=_read_fixture("coupon_list_2pages.html"))
+        )
+        respx.get(f"{coupon_url}PN2.html").mock(
+            return_value=httpx.Response(200, text=_read_fixture("coupon_list_page2_with_items.html"))
+        )
+        with patch("app.scrapers.hotpepper_coupon.time.sleep"):
+            coupons = fetch_coupons(coupon_url=coupon_url)
+        # Page 1 has 3, page 2 has 1
+        assert len(coupons) == 4
+        source_ids = [c.source_id for c in coupons]
+        assert "CP00000006033837" in source_ids
+
+    @respx.mock
+    def test_pagination_empty_page2_stops(self):
+        respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
+        coupon_url = f"{BASE}/coupon/"
+        respx.get(coupon_url).mock(
+            return_value=httpx.Response(200, text=_read_fixture("coupon_list_2pages.html"))
         )
         respx.get(f"{coupon_url}PN2.html").mock(
             return_value=httpx.Response(200, text=_read_fixture("coupon_list_page2.html"))
         )
         with patch("app.scrapers.hotpepper_coupon.time.sleep"):
-            coupons = fetch_coupons(coupon_url=coupon_url, max_pages=2)
+            coupons = fetch_coupons(coupon_url=coupon_url)
         # Page 1 has 3, page 2 is empty → stops
         assert len(coupons) == 3
 
@@ -301,14 +424,26 @@ class TestFetchCoupons:
         respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
         coupon_url = f"{BASE}/coupon/"
         respx.get(coupon_url).mock(
-            return_value=httpx.Response(200, text=_read_fixture("coupon_list.html"))
+            return_value=httpx.Response(200, text=_read_fixture("coupon_list_2pages.html"))
         )
         pn2 = f"{coupon_url}PN2.html"
         respx.get(pn2).mock(
             return_value=httpx.Response(404, text="Not Found", request=httpx.Request("GET", pn2))
         )
         with patch("app.scrapers.hotpepper_coupon.time.sleep"):
-            coupons = fetch_coupons(coupon_url=coupon_url, max_pages=2)
+            coupons = fetch_coupons(coupon_url=coupon_url)
+        assert len(coupons) == 3
+
+    @respx.mock
+    def test_single_page_detected(self):
+        """When page indicator says 1/1, no extra pages are fetched."""
+        respx.get(ROBOTS_URL).mock(return_value=httpx.Response(200, text=ROBOTS_BODY))
+        coupon_url = f"{BASE}/coupon/"
+        respx.get(coupon_url).mock(
+            return_value=httpx.Response(200, text=_read_fixture("coupon_list.html"))
+        )
+        # No PN2 mock needed — should not be requested
+        coupons = fetch_coupons(coupon_url=coupon_url)
         assert len(coupons) == 3
 
     @respx.mock
