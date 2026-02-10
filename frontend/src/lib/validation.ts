@@ -42,6 +42,13 @@ export function slug(): Validator {
   };
 }
 
+export function minLength(min: number): Validator {
+  return (v) => {
+    if (!v) return null;
+    return v.length >= min ? null : `${min}文字以上で入力してください`;
+  };
+}
+
 export function maxLength(max: number): Validator {
   return (v) => (v.length > max ? `${max}文字以内で入力してください` : null);
 }

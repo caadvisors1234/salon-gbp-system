@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     supabase_jwks_url: str = ""
     supabase_jwt_secret: str = ""
     supabase_jwt_audience: str = "authenticated"
+    supabase_service_role_key: str = ""
 
     # AES-256-GCM key, URL-safe base64 encoded 32 bytes.
     token_enc_key_b64: str = ""

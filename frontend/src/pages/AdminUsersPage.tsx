@@ -3,7 +3,7 @@ import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
 import { useApiFetch } from "../hooks/useApiFetch";
-import { validate, required, email as emailValidator, uuid as uuidValidator } from "../lib/validation";
+import { validate, required, email as emailValidator, uuid as uuidValidator, minLength } from "../lib/validation";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import DataTable, { Column } from "../components/DataTable";
@@ -34,6 +34,19 @@ export default function AdminUsersPage() {
 
   const [me, users, salons] = data ?? [null, [], []];
   const [err, setErr] = useState<string | null>(null);
+
+  // Invite form state
+  const [inviteForm, setInviteForm] = useState({
+    email: "",
+    password: "",
+    salon_id: "",
+    role: "staff",
+    display_name: "",
+  });
+  const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  // Assign form state
   const [form, setForm] = useState({
     supabase_user_id: "",
     email: "",
@@ -47,6 +60,18 @@ export default function AdminUsersPage() {
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
   }
+
+  const validateInviteForm = () => {
+    const errors: Record<string, string> = {};
+    const emailErr = validate(inviteForm.email, required("メールアドレス"), emailValidator());
+    if (emailErr) errors.email = emailErr;
+    if (inviteForm.password) {
+      const pwErr = validate(inviteForm.password, minLength(8));
+      if (pwErr) errors.password = pwErr;
+    }
+    setInviteErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const validateUserForm = () => {
     const errors: Record<string, string> = {};
@@ -103,7 +128,72 @@ export default function AdminUsersPage() {
       <PageHeader title="ユーザー管理" description="Supabaseユーザーをサロン・ロールに割り当て" />
       {(error || err) && <Alert variant="error" message={error || err!} dismissible onDismiss={() => setErr(null)} />}
 
-      <Card title="ユーザー割り当て / 更新">
+      <Card title="ユーザー招待">
+        <form
+          className="grid gap-4 sm:grid-cols-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setInviteErrors({});
+            if (!validateInviteForm()) return;
+            if (!token) return;
+            setErr(null);
+            setInviteLoading(true);
+            try {
+              await apiFetch("/admin/users/invite", {
+                method: "POST",
+                token,
+                body: JSON.stringify({
+                  email: inviteForm.email,
+                  password: inviteForm.password || null,
+                  salon_id: inviteForm.salon_id || null,
+                  role: inviteForm.role,
+                  display_name: inviteForm.display_name || null,
+                }),
+              });
+              setInviteForm({ email: "", password: "", salon_id: "", role: "staff", display_name: "" });
+              setInviteErrors({});
+              toast("success", "ユーザーを招待しました");
+              refetch();
+            } catch (e2: unknown) {
+              setErr(e2 instanceof Error ? e2.message : String(e2));
+            } finally {
+              setInviteLoading(false);
+            }
+          }}
+        >
+          <FormField label="メールアドレス" className="sm:col-span-2" error={inviteErrors.email}>
+            <input type="email" className={inputClass} value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} />
+          </FormField>
+          <FormField label="パスワード（任意・8文字以上）" className="sm:col-span-2" error={inviteErrors.password}>
+            <input type="password" className={inputClass} value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })} />
+          </FormField>
+          <FormField label="サロン">
+            <select className={selectClass} value={inviteForm.salon_id} onChange={(e) => setInviteForm({ ...inviteForm, salon_id: e.target.value })}>
+              <option value="">（なし）</option>
+              {salons.map((s) => (
+                <option key={s.id} value={s.id}>{s.slug}</option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="ロール">
+            <select className={selectClass} value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>
+              <option value="staff">スタッフ</option>
+              <option value="salon_admin">サロン管理者</option>
+              <option value="super_admin">管理者</option>
+            </select>
+          </FormField>
+          <FormField label="表示名" className="sm:col-span-2">
+            <input className={inputClass} value={inviteForm.display_name} onChange={(e) => setInviteForm({ ...inviteForm, display_name: e.target.value })} />
+          </FormField>
+          <div className="sm:col-span-2">
+            <Button variant="primary" type="submit" disabled={inviteLoading}>
+              {inviteLoading ? "招待中..." : "招待"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card title="手動ユーザー割り当て（上級者向け）">
         <form
           className="grid gap-4 sm:grid-cols-2"
           onSubmit={async (e) => {

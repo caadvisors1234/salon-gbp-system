@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import time
 from dataclasses import dataclass
@@ -8,7 +7,7 @@ from typing import Any
 
 import httpx
 import jwt
-from jwt import InvalidTokenError
+from jwt.exceptions import PyJWKError, PyJWTError
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +78,15 @@ def verify_jwt(
 ) -> dict[str, Any]:
     try:
         header = jwt.get_unverified_header(token)
-    except Exception as e:  # noqa: BLE001
+    except (PyJWTError, ValueError, TypeError) as e:
         raise SupabaseAuthError("Invalid JWT header") from e
 
     alg = header.get("alg", "")
     kid = header.get("kid")
+
+    if alg not in {"HS256", "RS256"}:
+        # Reject unexpected algorithms (including "none") before calling jwt.decode().
+        raise SupabaseAuthError("Unsupported JWT algorithm")
 
     # HS256: verify with symmetric secret
     if alg == "HS256":
@@ -102,7 +105,7 @@ def verify_jwt(
                 issuer=issuer,
                 options=options,
             )
-        except InvalidTokenError as e:
+        except (PyJWTError, ValueError, TypeError, KeyError) as e:
             raise SupabaseAuthError("JWT verification failed") from e
 
     # RS256: verify with public key from JWKS
@@ -119,7 +122,10 @@ def verify_jwt(
     if jwk is None:
         raise SupabaseAuthError("Public key not found for token kid")
 
-    key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
+    try:
+        jwk_obj = jwt.PyJWK(jwk)
+    except (PyJWKError, ValueError, TypeError, KeyError) as e:
+        raise SupabaseAuthError("Failed to load public key from JWK") from e
 
     options = {
         "verify_aud": bool(audience),
@@ -128,11 +134,11 @@ def verify_jwt(
     try:
         return jwt.decode(
             token,
-            key=key,
+            key=jwk_obj.key,
             algorithms=["RS256"],
             audience=audience,
             issuer=issuer,
             options=options,
         )
-    except InvalidTokenError as e:
+    except (PyJWTError, ValueError, TypeError, KeyError) as e:
         raise SupabaseAuthError("JWT verification failed") from e

@@ -14,7 +14,9 @@ from app.models.gbp_location import GbpLocation
 from app.models.job_log import JobLog
 from app.models.salon import Salon
 from app.models.user import AppUser
-from app.schemas.admin import AdminSalonCreate, AdminUserAssignRequest, AppUserResponse
+from app.core.config import get_settings
+from app.schemas.admin import AdminSalonCreate, AdminUserAssignRequest, AdminUserInviteRequest, AppUserResponse
+from app.services import supabase_admin
 from app.schemas.job_logs import JobLogResponse
 from app.schemas.monitor import SalonMonitorItem
 from app.schemas.salon import SalonResponse
@@ -56,6 +58,69 @@ def list_users(
 ) -> list[AppUserResponse]:
     users = db.query(AppUser).order_by(AppUser.created_at.desc()).all()
     return [AppUserResponse.model_validate(u) for u in users]
+
+
+@router.post("/users/invite", response_model=AppUserResponse, status_code=status.HTTP_201_CREATED)
+def invite_user(
+    payload: AdminUserInviteRequest,
+    db: Session = Depends(db_session),
+    _: CurrentUser = Depends(require_roles("super_admin")),
+) -> AppUserResponse:
+    settings = get_settings()
+    if not settings.supabase_service_role_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SUPABASE_SERVICE_ROLE_KEY is not configured",
+        )
+
+    existing = db.query(AppUser).filter(AppUser.email == str(payload.email)).one_or_none()
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists in app_users")
+
+    # Create user in Supabase (or get existing)
+    try:
+        sb_user = supabase_admin.create_user(
+            settings,
+            email=str(payload.email),
+            password=payload.password,
+        )
+    except supabase_admin.SupabaseUserAlreadyExistsError:
+        try:
+            sb_user = supabase_admin.get_user_by_email(settings, email=str(payload.email))
+        except supabase_admin.SupabaseAdminError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Supabase Admin API error: {exc.message}",
+            ) from exc
+        if sb_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="User exists in Supabase but could not be retrieved",
+            )
+    except supabase_admin.SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Supabase Admin API error: {exc.message}",
+        ) from exc
+
+    user = AppUser(
+        supabase_user_id=sb_user.id,
+        email=sb_user.email,
+        salon_id=payload.salon_id,
+        role=payload.role,
+        display_name=payload.display_name,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User already exists (duplicate supabase_user_id or email)",
+        ) from e
+    db.refresh(user)
+    return AppUserResponse.model_validate(user)
 
 
 @router.post("/users/assign", response_model=AppUserResponse)

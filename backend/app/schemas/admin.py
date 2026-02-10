@@ -22,6 +22,14 @@ class AdminUserAssignRequest(BaseModel):
     is_active: bool = True
 
 
+class AdminUserInviteRequest(BaseModel):
+    email: EmailStr
+    password: str | None = Field(default=None, min_length=8, max_length=128, repr=False)
+    role: Literal["staff", "salon_admin", "super_admin"] = "staff"
+    salon_id: uuid.UUID | None = None
+    display_name: str | None = Field(default=None, max_length=100)
+
+
 class AppUserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
