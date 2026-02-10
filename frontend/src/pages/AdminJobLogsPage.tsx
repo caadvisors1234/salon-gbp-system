@@ -8,6 +8,7 @@ import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
 import { formatDateTime } from "../lib/format";
+import { jobTypeLabel, jobStatusLabel, translateError } from "../lib/labels";
 import type { MeResponse, JobLogResponse } from "../types/api";
 
 export default function AdminJobLogsPage() {
@@ -35,15 +36,15 @@ export default function AdminJobLogsPage() {
       header: "ジョブ",
       render: (l) => (
         <div>
-          <div className="font-medium text-stone-900">{l.job_type}</div>
-          {l.error_message && <div className="mt-1 truncate text-xs text-red-600 max-w-[20rem]">{l.error_message}</div>}
+          <div className="font-medium text-stone-900">{jobTypeLabel(l.job_type)}</div>
+          {l.error_message && <div className="mt-1 truncate text-xs text-red-600 max-w-[20rem]">{translateError(l.error_message)}</div>}
         </div>
       ),
     },
     {
       key: "status",
       header: "ステータス",
-      render: (l) => <Badge variant={statusVariant(l.status)}>{l.status}</Badge>,
+      render: (l) => <Badge variant={statusVariant(l.status)}>{jobStatusLabel(l.status)}</Badge>,
     },
     {
       key: "found",

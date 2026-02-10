@@ -1,4 +1,5 @@
 import React from "react";
+import { translateError } from "../lib/labels";
 
 interface Props {
   children: React.ReactNode;
@@ -58,7 +59,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 予期しないエラーが発生しました
               </h2>
               <p className="mt-2 text-sm text-stone-500">
-                {this.state.error?.message ?? "不明なエラー"}
+                {translateError(this.state.error?.message ?? "不明なエラー")}
               </p>
               <div className="mt-6 flex items-center justify-center gap-3">
                 <button

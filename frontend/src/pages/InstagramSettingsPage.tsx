@@ -11,6 +11,7 @@ import Button from "../components/Button";
 import FormField, { inputClass, selectClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconTrash } from "../components/icons";
+import { translateError } from "../lib/labels";
 import type { InstagramAccountResponse } from "../types/api";
 
 const INITIAL_FORM = {
@@ -52,16 +53,16 @@ export default function InstagramSettingsPage() {
     const ac = new AbortController();
     load(ac.signal).catch((e) => {
       if (e.name === "AbortError") return;
-      setErr(e?.message ?? String(e));
+      setErr(translateError(e?.message ?? String(e)));
     });
     return () => ac.abort();
   }, [token]);
 
   const validateManualForm = () => {
     const errors: Record<string, string> = {};
-    const igUserIdErr = validate(form.ig_user_id, required("IG ユーザーID"));
+    const igUserIdErr = validate(form.ig_user_id, required("Instagram ユーザーID"));
     if (igUserIdErr) errors.ig_user_id = igUserIdErr;
-    const igUsernameErr = validate(form.ig_username, required("IG ユーザー名"));
+    const igUsernameErr = validate(form.ig_username, required("Instagram ユーザー名"));
     if (igUsernameErr) errors.ig_username = igUsernameErr;
     const tokenErr = validate(form.access_token, required("アクセストークン"));
     if (tokenErr) errors.access_token = tokenErr;
@@ -71,14 +72,14 @@ export default function InstagramSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Instagram設定" description="Meta OAuthまたは手動でアカウントを登録" />
+      <PageHeader title="Instagram設定" description="Instagramアカウントを連携・登録" />
 
-      {oauth === "success" && <Alert variant="success" message={`OAuth接続完了。追加/更新: ${added ?? "0"}件`} />}
-      {oauth === "error" && <Alert variant="error" message="OAuth接続に失敗しました" />}
+      {oauth === "success" && <Alert variant="success" message={`Instagram連携完了。追加/更新: ${added ?? "0"}件`} />}
+      {oauth === "error" && <Alert variant="error" message="Instagram連携に失敗しました" />}
       {err && <Alert variant="error" message={err} dismissible onDismiss={() => setErr(null)} />}
 
       {/* OAuth Connect */}
-      <Card title="OAuth接続（Meta）">
+      <Card title="Instagramアカウント連携">
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="primary"
@@ -91,7 +92,7 @@ export default function InstagramSettingsPage() {
                 });
                 window.location.href = res.redirect_url;
               } catch (e: unknown) {
-                setErr(e instanceof Error ? e.message : String(e));
+                setErr(translateError(e instanceof Error ? e.message : String(e)));
               }
             }}
           >
@@ -115,7 +116,7 @@ export default function InstagramSettingsPage() {
                   );
                   window.location.href = res.redirect_url;
                 } catch (e: unknown) {
-                  setErr(e instanceof Error ? e.message : String(e));
+                  setErr(translateError(e instanceof Error ? e.message : String(e)));
                 }
               }}
             >
@@ -123,7 +124,7 @@ export default function InstagramSettingsPage() {
             </Button>
           </div>
         </div>
-        <p className="mt-3 text-xs text-stone-400">本番環境ではMeta App Reviewが必要です</p>
+        <p className="mt-3 text-xs text-stone-400">本番環境ではMeta社の審査が必要です</p>
       </Card>
 
       {/* Manual Add */}
@@ -149,14 +150,14 @@ export default function InstagramSettingsPage() {
               toast("success", "アカウントを追加しました");
               await load();
             } catch (e2: unknown) {
-              setErr(e2 instanceof Error ? e2.message : String(e2));
+              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
             }
           }}
         >
-          <FormField label="IG ユーザーID" error={formErrors.ig_user_id}>
+          <FormField label="Instagram ユーザーID" error={formErrors.ig_user_id}>
             <input className={inputClass} value={form.ig_user_id} onChange={(e) => setForm({ ...form, ig_user_id: e.target.value })} />
           </FormField>
-          <FormField label="IG ユーザー名" error={formErrors.ig_username}>
+          <FormField label="Instagram ユーザー名" error={formErrors.ig_username}>
             <input className={inputClass} value={form.ig_username} onChange={(e) => setForm({ ...form, ig_username: e.target.value })} />
           </FormField>
           <FormField label="アカウント種別">
@@ -219,7 +220,7 @@ export default function InstagramSettingsPage() {
                             });
                             setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
                           } catch (ex: unknown) {
-                            setErr(ex instanceof Error ? ex.message : String(ex));
+                            setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
                           } finally {
                             setActioningId(null);
                           }
@@ -248,7 +249,7 @@ export default function InstagramSettingsPage() {
                             });
                             setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
                           } catch (ex: unknown) {
-                            setErr(ex instanceof Error ? ex.message : String(ex));
+                            setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
                           } finally {
                             setActioningId(null);
                           }
@@ -270,7 +271,7 @@ export default function InstagramSettingsPage() {
                             await apiFetch<void>(`/instagram/accounts/${a.id}`, { method: "DELETE", token });
                             await load();
                           } catch (ex: unknown) {
-                            setErr(ex instanceof Error ? ex.message : String(ex));
+                            setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
                           } finally {
                             setActioningId(null);
                           }

@@ -10,6 +10,7 @@ import Button from "../components/Button";
 import FormField, { inputClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconSpinner } from "../components/icons";
+import { translateError } from "../lib/labels";
 import type { SalonResponse } from "../types/api";
 
 function parseHotpepperUrl(url: string) {
@@ -128,7 +129,7 @@ export default function SalonSettingsPage() {
               setSavedTopUrl(updated.hotpepper_top_url ?? null);
               toast("success", "保存しました");
             } catch (e2: unknown) {
-              setErr(e2 instanceof Error ? e2.message : String(e2));
+              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
             } finally {
               setBusy(false);
             }

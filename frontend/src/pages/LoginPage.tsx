@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import Button from "../components/Button";
 import FormField, { inputClass } from "../components/FormField";
 import Alert from "../components/Alert";
+import { translateError } from "../lib/labels";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -34,7 +35,7 @@ export default function LoginPage() {
               e.preventDefault();
               setError(null);
               if (!supabase) {
-                setError("Supabase が設定されていません（VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY）");
+                setError("認証システムが設定されていません。管理者にお問い合わせください");
                 return;
               }
               setBusy(true);
@@ -43,7 +44,7 @@ export default function LoginPage() {
                 if (err) throw err;
                 navigate("/dashboard");
               } catch (e2: any) {
-                setError(e2?.message ?? String(e2));
+                setError(translateError(e2?.message ?? String(e2)));
               } finally {
                 setBusy(false);
               }

@@ -7,6 +7,7 @@ import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
 import { formatDateTime } from "../lib/format";
+import { connectionStatusLabel } from "../lib/labels";
 import { useGbpSettings, keyOf } from "../hooks/useGbpSettings";
 
 export default function GbpSettingsPage() {
@@ -37,10 +38,10 @@ export default function GbpSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="GBP設定" description="Googleアカウント接続とロケーション選択" />
+      <PageHeader title="GBP設定" description="Googleアカウントとの連携設定" />
 
-      {oauth === "success" && <Alert variant="success" message="OAuth接続が完了しました" />}
-      {oauth === "error" && <Alert variant="error" message="OAuth接続に失敗しました" />}
+      {oauth === "success" && <Alert variant="success" message="Googleアカウント連携が完了しました" />}
+      {oauth === "error" && <Alert variant="error" message="Googleアカウント連携に失敗しました" />}
 
       {/* Connection */}
       <Card title="接続状態">
@@ -50,7 +51,7 @@ export default function GbpSettingsPage() {
               <div className="space-y-1 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-stone-500">ステータス:</span>
-                  <Badge variant={statusVariant(conn.status)}>{conn.status}</Badge>
+                  <Badge variant={statusVariant(conn.status)}>{connectionStatusLabel(conn.status)}</Badge>
                 </div>
                 <div><span className="text-stone-500">メール:</span> <span className="text-stone-800">{conn.google_account_email || "（不明）"}</span></div>
                 <div><span className="text-stone-500">有効期限:</span> <span className="text-stone-800">{formatDateTime(conn.token_expires_at)}</span></div>
@@ -69,7 +70,7 @@ export default function GbpSettingsPage() {
       {/* Saved Locations */}
       <Card
         title="登録済みロケーション"
-        description="データベースに保存されたGBPロケーション"
+        description="登録済みのGBPロケーション"
         action={
           <Button variant="secondary" onClick={refreshLocations}>
             <IconRefresh className="h-4 w-4" />
@@ -116,7 +117,7 @@ export default function GbpSettingsPage() {
       {/* Available Locations */}
       <Card
         title="利用可能なロケーション"
-        description="Googleから取得（ベストエフォート）"
+        description="Googleから取得できるロケーション"
         action={
           <Button variant="secondary" loading={busy} onClick={fetchAvailable}>
             取得

@@ -7,6 +7,7 @@ import DataTable, { Column } from "../components/DataTable";
 import Badge, { statusVariant } from "../components/Badge";
 import Alert from "../components/Alert";
 import { formatDateTime } from "../lib/format";
+import { statusLabel, postTypeLabel, translateError } from "../lib/labels";
 import type { PostListItem } from "../types/api";
 
 export default function PostsListPage({ kind }: { kind: "pending" | "history" }) {
@@ -34,12 +35,12 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
     {
       key: "status",
       header: "ステータス",
-      render: (p) => <Badge variant={statusVariant(p.status)}>{p.status}</Badge>,
+      render: (p) => <Badge variant={statusVariant(p.status)}>{statusLabel(p.status)}</Badge>,
     },
     {
       key: "type",
       header: "種別",
-      render: (p) => <span className="text-stone-600">{p.post_type}</span>,
+      render: (p) => <span className="text-stone-600">{postTypeLabel(p.post_type)}</span>,
     },
     {
       key: "summary",
@@ -51,7 +52,7 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
             {p.summary_final.slice(0, 120)}
             {p.summary_final.length > 120 ? "..." : ""}
           </div>
-          {p.error_message && <div className="mt-1 truncate text-xs text-red-600">{p.error_message}</div>}
+          {p.error_message && <div className="mt-1 truncate text-xs text-red-600">{translateError(p.error_message)}</div>}
         </div>
       ),
     },

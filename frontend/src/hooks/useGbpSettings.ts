@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
+import { translateError } from "../lib/labels";
 import type { GbpConnectionResponse, GbpLocationResponse, GbpAvailableLocation } from "../types/api";
 
 const keyOf = (a: { account_id: string; location_id: string }) => `${a.account_id}::${a.location_id}`;
@@ -29,7 +30,7 @@ export function useGbpSettings(oauthParam: string | null) {
       .catch((e) => {
         if (e.name === "AbortError") return;
         setConn(null);
-        setConnErr(e?.message ?? String(e));
+        setConnErr(translateError(e?.message ?? String(e)));
       });
     apiFetch<GbpLocationResponse[]>("/gbp/locations", { token, signal: ac.signal })
       .then(setLocations)
@@ -60,7 +61,7 @@ export function useGbpSettings(oauthParam: string | null) {
       });
       window.location.href = res.redirect_url;
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(translateError(e instanceof Error ? e.message : String(e)));
     }
   }, [token]);
 
@@ -73,7 +74,7 @@ export function useGbpSettings(oauthParam: string | null) {
       setLocations(locs);
       toast("success", "再読込しました");
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(translateError(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -88,7 +89,7 @@ export function useGbpSettings(oauthParam: string | null) {
       setAvailable(locs);
       toast("success", `${locs.length}件のロケーションを取得しました`);
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(translateError(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -115,7 +116,7 @@ export function useGbpSettings(oauthParam: string | null) {
       setLocations(saved);
       toast("success", `${saved.length}件のロケーションを保存しました`);
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(translateError(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -135,7 +136,7 @@ export function useGbpSettings(oauthParam: string | null) {
         });
         setLocations((prev) => prev.map((x) => (x.id === id ? updated : x)));
       } catch (e: unknown) {
-        setErr(e instanceof Error ? e.message : String(e));
+        setErr(translateError(e instanceof Error ? e.message : String(e)));
       } finally {
         setTogglingId(null);
       }

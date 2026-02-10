@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
+import { translateError } from "../lib/labels";
 
 /**
  * Generic data-fetching hook that handles auth token injection, AbortController,
@@ -53,7 +54,7 @@ export function useApiFetch<T>(
           if (activeAbort.current === ac) activeAbort.current = null;
           return;
         }
-        setError(e instanceof Error ? e.message : String(e));
+        setError(translateError(e instanceof Error ? e.message : String(e)));
         setLoading(false);
         if (activeAbort.current === ac) activeAbort.current = null;
       });

@@ -39,7 +39,7 @@ describe("useApiFetch", () => {
       expect(result.current.loading).toBe(false);
     });
     expect(result.current.data).toBeNull();
-    expect(result.current.error).toBe("Network error");
+    expect(result.current.error).toBe("ネットワークエラーが発生しました。接続を確認してください");
   });
 
   it("skips fetch when fetcher is null", () => {

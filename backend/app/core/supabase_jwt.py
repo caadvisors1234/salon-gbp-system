@@ -28,6 +28,16 @@ class _JWKSCache:
 
 _cache = _JWKSCache()
 
+_SYMMETRIC_ALGS: frozenset[str] = frozenset({"HS256"})
+_ASYMMETRIC_ALGS: frozenset[str] = frozenset({"RS256", "ES256"})
+_ALLOWED_ALGS: frozenset[str] = _SYMMETRIC_ALGS | _ASYMMETRIC_ALGS
+
+# NOTE: When calling jwt.decode(), we pass algorithms=[alg] (i.e. only the
+# algorithm declared in the token header) instead of the full allowed set.
+# The header alg has already been validated against _ALLOWED_ALGS above, and
+# restricting to the single declared algorithm prevents algorithm-confusion
+# attacks when the JWK omits its optional "alg" field (RFC 7517 §4.4).
+
 
 def _fetch_jwks(jwks_url: str) -> dict[str, Any]:
     if not jwks_url:
@@ -84,12 +94,12 @@ def verify_jwt(
     alg = header.get("alg", "")
     kid = header.get("kid")
 
-    if alg not in {"HS256", "RS256"}:
+    if alg not in _ALLOWED_ALGS:
         # Reject unexpected algorithms (including "none") before calling jwt.decode().
         raise SupabaseAuthError("Unsupported JWT algorithm")
 
     # HS256: verify with symmetric secret
-    if alg == "HS256":
+    if alg in _SYMMETRIC_ALGS:
         if not jwt_secret:
             raise SupabaseAuthError("JWT uses HS256 but SUPABASE_JWT_SECRET is not configured")
         options = {
@@ -100,7 +110,7 @@ def verify_jwt(
             return jwt.decode(
                 token,
                 key=jwt_secret,
-                algorithms=["HS256"],
+                algorithms=[alg],
                 audience=audience,
                 issuer=issuer,
                 options=options,
@@ -108,7 +118,7 @@ def verify_jwt(
         except (PyJWTError, ValueError, TypeError, KeyError) as e:
             raise SupabaseAuthError("JWT verification failed") from e
 
-    # RS256: verify with public key from JWKS
+    # RS256 / ES256: verify with public key from JWKS
     if not kid:
         raise SupabaseAuthError("JWT header missing kid")
 
@@ -121,6 +131,9 @@ def verify_jwt(
         jwk = _find_jwk(jwks, kid)
     if jwk is None:
         raise SupabaseAuthError("Public key not found for token kid")
+
+    if jwk.get("alg") and jwk["alg"] != alg:
+        raise SupabaseAuthError("JWK algorithm mismatch")
 
     try:
         jwk_obj = jwt.PyJWK(jwk)
@@ -135,7 +148,7 @@ def verify_jwt(
         return jwt.decode(
             token,
             key=jwk_obj.key,
-            algorithms=["RS256"],
+            algorithms=[alg],
             audience=audience,
             issuer=issuer,
             options=options,

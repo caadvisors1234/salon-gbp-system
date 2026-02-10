@@ -8,6 +8,7 @@ import Badge, { statusVariant } from "../components/Badge";
 import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
+import { mediaStatusLabel, mediaFormatLabel, mediaCategoryLabel, translateError } from "../lib/labels";
 import type { MediaUploadListItem } from "../types/api";
 
 export default function MediaUploadsPage() {
@@ -28,21 +29,21 @@ export default function MediaUploadsPage() {
     {
       key: "status",
       header: "ステータス",
-      render: (u) => <Badge variant={statusVariant(u.status)}>{u.status}</Badge>,
+      render: (u) => <Badge variant={statusVariant(u.status)}>{mediaStatusLabel(u.status)}</Badge>,
     },
     {
       key: "format",
       header: "形式",
-      render: (u) => <span className="text-stone-600">{u.media_format}</span>,
+      render: (u) => <span className="text-stone-600">{mediaFormatLabel(u.media_format)}</span>,
     },
     {
       key: "category",
       header: "カテゴリ",
-      render: (u) => <span className="text-stone-600">{u.category}</span>,
+      render: (u) => <span className="text-stone-600">{mediaCategoryLabel(u.category)}</span>,
     },
     {
       key: "source",
-      header: "ソースURL",
+      header: "取得元URL",
       className: "max-w-[24rem]",
       render: (u) => <span className="truncate block text-xs text-stone-500">{u.source_image_url}</span>,
     },
@@ -64,7 +65,7 @@ export default function MediaUploadsPage() {
               await apiFetch<MediaUploadListItem>(`/media_uploads/${u.id}/approve`, { method: "POST", token });
               refetch();
             } catch (ex: unknown) {
-              setErr(ex instanceof Error ? ex.message : String(ex));
+              setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
             } finally {
               setActioningId(null);
             }
@@ -80,7 +81,7 @@ export default function MediaUploadsPage() {
     <div className="space-y-4">
       <PageHeader
         title="メディアアップロード"
-        description="承認するとGBP Media APIへアップロードされます"
+        description="承認するとGoogleビジネスプロフィールにアップロードされます"
         action={
           <Button variant="secondary" onClick={refetch}>
             <IconRefresh className="h-4 w-4" />

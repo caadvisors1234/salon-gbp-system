@@ -6,6 +6,7 @@ import { apiFetch } from "./lib/api";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IconMenu, IconSpinner } from "./components/icons";
+import { translateError } from "./lib/labels";
 import type { MeResponse } from "./types/api";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -68,7 +69,7 @@ function Shell() {
   // Global unhandled rejection handler
   useEffect(() => {
     const handler = (e: PromiseRejectionEvent) => {
-      toast("error", e.reason?.message ?? "予期しないエラーが発生しました");
+      toast("error", translateError(e.reason?.message ?? "予期しないエラーが発生しました"));
     };
     window.addEventListener("unhandledrejection", handler);
     return () => window.removeEventListener("unhandledrejection", handler);

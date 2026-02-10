@@ -12,6 +12,7 @@ import Button from "../components/Button";
 import FormField, { inputClass, selectClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
+import { roleLabel, translateError } from "../lib/labels";
 import type { MeResponse, SalonResponse, AppUserResponse } from "../types/api";
 
 export default function AdminUsersPage() {
@@ -75,20 +76,12 @@ export default function AdminUsersPage() {
 
   const validateUserForm = () => {
     const errors: Record<string, string> = {};
-    const uuidErr = validate(form.supabase_user_id, required("Supabase ユーザーID"), uuidValidator());
+    const uuidErr = validate(form.supabase_user_id, required("ユーザーID"), uuidValidator());
     if (uuidErr) errors.supabase_user_id = uuidErr;
     const emailErr = validate(form.email, required("メールアドレス"), emailValidator());
     if (emailErr) errors.email = emailErr;
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  };
-
-  const roleLabel = (role: string) => {
-    switch (role) {
-      case "super_admin": return "管理者";
-      case "salon_admin": return "サロン管理者";
-      default: return "スタッフ";
-    }
   };
 
   const columns: Column<AppUserResponse>[] = [
@@ -99,7 +92,7 @@ export default function AdminUsersPage() {
     },
     {
       key: "role",
-      header: "ロール",
+      header: "権限",
       render: (u) => (
         <Badge variant={u.role === "super_admin" ? "error" : u.role === "salon_admin" ? "primary" : "default"}>
           {roleLabel(u.role)}
@@ -118,14 +111,14 @@ export default function AdminUsersPage() {
     },
     {
       key: "supabase",
-      header: "Supabase ID",
+      header: "ユーザーID",
       render: (u) => <span className="text-xs text-stone-400 font-mono">{u.supabase_user_id.slice(0, 8)}...</span>,
     },
   ];
 
   return (
     <div className="space-y-4">
-      <PageHeader title="ユーザー管理" description="Supabaseユーザーをサロン・ロールに割り当て" />
+      <PageHeader title="ユーザー管理" description="ユーザーをサロン・権限に割り当て" />
       {(error || err) && <Alert variant="error" message={error || err!} dismissible onDismiss={() => setErr(null)} />}
 
       <Card title="ユーザー招待">
@@ -155,7 +148,7 @@ export default function AdminUsersPage() {
               toast("success", "ユーザーを招待しました");
               refetch();
             } catch (e2: unknown) {
-              setErr(e2 instanceof Error ? e2.message : String(e2));
+              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
             } finally {
               setInviteLoading(false);
             }
@@ -219,11 +212,11 @@ export default function AdminUsersPage() {
               toast("success", "ユーザーを保存しました");
               refetch();
             } catch (e2: unknown) {
-              setErr(e2 instanceof Error ? e2.message : String(e2));
+              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
             }
           }}
         >
-          <FormField label="Supabase ユーザーID (UUID)" className="sm:col-span-2" error={formErrors.supabase_user_id}>
+          <FormField label="認証システム ユーザーID" className="sm:col-span-2" error={formErrors.supabase_user_id}>
             <input className={inputClass} value={form.supabase_user_id} onChange={(e) => setForm({ ...form, supabase_user_id: e.target.value })} />
           </FormField>
           <FormField label="メールアドレス" className="sm:col-span-2" error={formErrors.email}>

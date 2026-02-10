@@ -9,6 +9,7 @@ import Alert from "../components/Alert";
 import { SkeletonCard } from "../components/Skeleton";
 import { IconAlert as IconAlertIcon, IconPosts, IconSettings } from "../components/icons";
 import { formatRelative } from "../lib/format";
+import { roleLabel, severityLabel, alertTypeLabel, translateError } from "../lib/labels";
 import type { MeResponse, AlertResponse, PostListItem } from "../types/api";
 
 export default function DashboardPage() {
@@ -44,7 +45,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="ダッシュボード"
-        description={me ? `${me.email}（${me.role}）` : undefined}
+        description={me ? `${me.email}（${roleLabel(me.role)}）` : undefined}
       />
 
       {error && <Alert variant="error" message={error} />}
@@ -102,10 +103,10 @@ export default function DashboardPage() {
           <ul className="-mx-5 -mb-4 divide-y divide-stone-100">
             {alerts.slice(0, 5).map((a) => (
               <li key={a.id} className="flex items-start gap-3 px-5 py-3">
-                <Badge variant={severityVariant(a.severity)}>{a.severity.toUpperCase()}</Badge>
+                <Badge variant={severityVariant(a.severity)}>{severityLabel(a.severity)}</Badge>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-stone-800">{a.alert_type}</div>
-                  <div className="mt-0.5 text-sm text-stone-600 truncate">{a.message}</div>
+                  <div className="text-sm font-medium text-stone-800">{alertTypeLabel(a.alert_type)}</div>
+                  <div className="mt-0.5 text-sm text-stone-600 truncate">{translateError(a.message)}</div>
                 </div>
                 <div className="flex-shrink-0 text-xs text-stone-400">{formatRelative(a.created_at)}</div>
               </li>

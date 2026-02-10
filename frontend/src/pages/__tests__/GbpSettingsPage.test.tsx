@@ -72,12 +72,12 @@ describe("GbpSettingsPage", () => {
 
   it("shows OAuth success message", async () => {
     renderPage("?oauth=success");
-    expect(screen.getByText("OAuth接続が完了しました")).toBeInTheDocument();
+    expect(screen.getByText("Googleアカウント連携が完了しました")).toBeInTheDocument();
   });
 
   it("shows OAuth error message", async () => {
     renderPage("?oauth=error");
-    expect(screen.getByText("OAuth接続に失敗しました")).toBeInTheDocument();
+    expect(screen.getByText("Googleアカウント連携に失敗しました")).toBeInTheDocument();
   });
 
   it("displays connection status", async () => {
@@ -85,7 +85,7 @@ describe("GbpSettingsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("salon@gmail.com")).toBeInTheDocument();
     });
-    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(screen.getByText("接続中")).toBeInTheDocument();
   });
 
   it("displays saved locations", async () => {

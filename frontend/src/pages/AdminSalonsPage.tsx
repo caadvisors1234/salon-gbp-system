@@ -12,6 +12,7 @@ import Button from "../components/Button";
 import FormField, { inputClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
+import { translateError } from "../lib/labels";
 import type { MeResponse, SalonResponse } from "../types/api";
 
 export default function AdminSalonsPage() {
@@ -88,7 +89,7 @@ export default function AdminSalonsPage() {
               toast("success", "サロンを作成しました");
               refetch();
             } catch (e2: unknown) {
-              setErr(e2 instanceof Error ? e2.message : String(e2));
+              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
             }
           }}
         >

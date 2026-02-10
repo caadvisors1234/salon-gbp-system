@@ -7,6 +7,7 @@ import Badge, { statusVariant } from "../components/Badge";
 import Button from "../components/Button";
 import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
+import { connectionStatusLabel } from "../lib/labels";
 import type { MeResponse, SalonMonitorItem } from "../types/api";
 
 export default function AdminMonitorPage() {
@@ -56,7 +57,7 @@ export default function AdminMonitorPage() {
     {
       key: "gbp",
       header: "GBP接続",
-      render: (i) => <Badge variant={statusVariant(i.gbp_connection_status)}>{i.gbp_connection_status}</Badge>,
+      render: (i) => <Badge variant={statusVariant(i.gbp_connection_status)}>{connectionStatusLabel(i.gbp_connection_status)}</Badge>,
     },
     {
       key: "locations",

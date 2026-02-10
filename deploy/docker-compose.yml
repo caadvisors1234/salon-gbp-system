@@ -53,9 +53,14 @@ services:
       - ../.env
     environment:
       - VITE_API_BASE=/api
-      - VITE_SUPABASE_URL=${SUPABASE_URL}
-      - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    # Vite requires VITE_ prefixed env vars at process start time.
+    # Using shell export ensures vars are available when 'npm run dev' launches.
+    command: >
+      sh -c "
+        export VITE_SUPABASE_URL=$$SUPABASE_URL
+        export VITE_SUPABASE_ANON_KEY=$$SUPABASE_ANON_KEY
+        npm install && npm run dev -- --host 0.0.0.0 --port 5173
+      "
 
   db:
     image: postgres:16-alpine

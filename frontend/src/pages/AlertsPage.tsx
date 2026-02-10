@@ -10,6 +10,7 @@ import Alert from "../components/Alert";
 import { IconRefresh } from "../components/icons";
 import { selectClass } from "../components/FormField";
 import { formatDateTime } from "../lib/format";
+import { severityLabel, alertTypeLabel, translateError } from "../lib/labels";
 import type { AlertResponse } from "../types/api";
 
 export default function AlertsPage() {
@@ -32,18 +33,18 @@ export default function AlertsPage() {
     {
       key: "severity",
       header: "重要度",
-      render: (a) => <Badge variant={severityVariant(a.severity)}>{a.severity}</Badge>,
+      render: (a) => <Badge variant={severityVariant(a.severity)}>{severityLabel(a.severity)}</Badge>,
     },
     {
       key: "type",
       header: "種別",
-      render: (a) => <span className="text-sm font-medium text-stone-800">{a.alert_type}</span>,
+      render: (a) => <span className="text-sm font-medium text-stone-800">{alertTypeLabel(a.alert_type)}</span>,
     },
     {
       key: "message",
       header: "メッセージ",
       className: "max-w-[28rem]",
-      render: (a) => <span className="text-sm text-stone-600 truncate block">{a.message}</span>,
+      render: (a) => <span className="text-sm text-stone-600 truncate block">{translateError(a.message)}</span>,
     },
     {
       key: "created",
@@ -70,7 +71,7 @@ export default function AlertsPage() {
                   await apiFetch(`/alerts/${a.id}/ack`, { method: "POST", token });
                   refetch();
                 } catch (ex: unknown) {
-                  setErr(ex instanceof Error ? ex.message : String(ex));
+                  setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
                 } finally {
                   setActioningId(null);
                 }
@@ -94,7 +95,7 @@ export default function AlertsPage() {
                   await apiFetch(`/alerts/${a.id}/resolve`, { method: "POST", token });
                   refetch();
                 } catch (ex: unknown) {
-                  setErr(ex instanceof Error ? ex.message : String(ex));
+                  setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
                 } finally {
                   setActioningId(null);
                 }

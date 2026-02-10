@@ -100,7 +100,7 @@ describe("DashboardPage", () => {
       expect(screen.getByText("ダッシュボード")).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByText("admin@salon.jp（salon_admin）")).toBeInTheDocument();
+      expect(screen.getByText("admin@salon.jp（サロン管理者）")).toBeInTheDocument();
     });
   });
 
@@ -129,7 +129,7 @@ describe("DashboardPage", () => {
 
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("Network error")).toBeInTheDocument();
+      expect(screen.getByText("ネットワークエラーが発生しました。接続を確認してください")).toBeInTheDocument();
     });
   });
 

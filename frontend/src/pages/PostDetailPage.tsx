@@ -13,6 +13,7 @@ import FormField, { inputClass, textareaClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconSpinner } from "../components/icons";
 import { formatDateTime } from "../lib/format";
+import { statusLabel, postTypeLabel, translateError } from "../lib/labels";
 import type { PostDetail } from "../types/api";
 
 export default function PostDetailPage() {
@@ -79,7 +80,7 @@ export default function PostDetailPage() {
       setPost(updated);
       toast("success", "完了しました");
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(translateError(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -100,8 +101,8 @@ export default function PostDetailPage() {
       />
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant={statusVariant(post.status)}>{post.status}</Badge>
-        <span className="text-stone-500">種別: {post.post_type}</span>
+        <Badge variant={statusVariant(post.status)}>{statusLabel(post.status)}</Badge>
+        <span className="text-stone-500">種別: {postTypeLabel(post.post_type)}</span>
         <span className="text-stone-400">作成: {formatDateTime(post.created_at)}</span>
         {post.posted_at && <span className="text-stone-400">投稿: {formatDateTime(post.posted_at)}</span>}
       </div>
@@ -131,14 +132,14 @@ export default function PostDetailPage() {
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <FormField label="CTAタイプ">
+          <FormField label="ボタンの種類">
             <input
               className={inputClass}
               value={post.cta_type ?? ""}
               onChange={(e) => setPost({ ...post, cta_type: e.target.value || null })}
             />
           </FormField>
-          <FormField label="CTA URL" error={fieldErrors.cta_url}>
+          <FormField label="ボタンのリンク先URL" error={fieldErrors.cta_url}>
             <input
               className={inputClass}
               value={post.cta_url ?? ""}
@@ -209,7 +210,7 @@ export default function PostDetailPage() {
                 setFieldErrors({});
                 toast("success", "保存しました");
               } catch (e: unknown) {
-                setErr(e instanceof Error ? e.message : String(e));
+                setErr(translateError(e instanceof Error ? e.message : String(e)));
               } finally {
                 setBusy(false);
               }
@@ -243,7 +244,7 @@ export default function PostDetailPage() {
           </Button>
         </div>
 
-        {post.error_message && <div className="mt-4"><Alert variant="error" message={post.error_message} /></div>}
+        {post.error_message && <div className="mt-4"><Alert variant="error" message={translateError(post.error_message)} /></div>}
         {err && <div className="mt-4"><Alert variant="error" message={err} dismissible onDismiss={() => setErr(null)} /></div>}
       </Card>
 
