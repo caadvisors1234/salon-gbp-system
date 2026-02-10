@@ -81,6 +81,20 @@ describe("Sidebar", () => {
     expect(screen.getByLabelText("ナビゲーション")).toBeInTheDocument();
   });
 
+  it("hides settings items for staff role", () => {
+    renderSidebar({ role: "staff" });
+    expect(screen.queryByText("マイサロン")).not.toBeInTheDocument();
+    expect(screen.queryByText("GBP設定")).not.toBeInTheDocument();
+    expect(screen.queryByText("Instagram設定")).not.toBeInTheDocument();
+  });
+
+  it("shows settings items for salon_admin role", () => {
+    renderSidebar({ role: "salon_admin" });
+    expect(screen.getByText("マイサロン")).toBeInTheDocument();
+    expect(screen.getByText("GBP設定")).toBeInTheDocument();
+    expect(screen.getByText("Instagram設定")).toBeInTheDocument();
+  });
+
   it("calls onClose when mobile close button is clicked", async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();

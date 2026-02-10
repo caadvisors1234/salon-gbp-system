@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, db_session, get_current_user, require_roles, require_salon
+from app.api.deps import CurrentUser, db_session, require_roles, require_salon
 from app.core.config import get_settings
 from app.core.crypto import encrypt_str
 from app.models.instagram_account import InstagramAccount
@@ -23,7 +23,7 @@ router = APIRouter()
 @router.get("/accounts", response_model=list[InstagramAccountResponse])
 def list_accounts(
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_roles("salon_admin")),
 ) -> list[InstagramAccountResponse]:
     salon_id = require_salon(user)
     accounts = (

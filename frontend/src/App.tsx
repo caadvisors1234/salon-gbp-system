@@ -22,6 +22,20 @@ const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage"));
 const AdminMonitorPage = lazy(() => import("./pages/AdminMonitorPage"));
 const AdminJobLogsPage = lazy(() => import("./pages/AdminJobLogsPage"));
 
+export function RequireSalonAdmin({ role, children }: { role: string; children: React.ReactNode }) {
+  if (!role) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <IconSpinner className="h-6 w-6 text-pink-500" />
+      </div>
+    );
+  }
+  if (role !== "salon_admin" && role !== "super_admin") {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <>{children}</>;
+}
+
 function Shell() {
   const { session, loading } = useAuth();
   const location = useLocation();
@@ -136,9 +150,9 @@ function Shell() {
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/settings/salon" element={<SalonSettingsPage />} />
-                <Route path="/settings/gbp" element={<GbpSettingsPage />} />
-                <Route path="/settings/instagram" element={<InstagramSettingsPage />} />
+                <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
+                <Route path="/settings/gbp" element={<RequireSalonAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSalonAdmin>} />
+                <Route path="/settings/instagram" element={<RequireSalonAdmin role={me?.role ?? ""}><InstagramSettingsPage /></RequireSalonAdmin>} />
                 <Route path="/posts/:postId" element={<PostDetailPage />} />
                 <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
                 <Route path="/posts/history" element={<PostsListPage kind="history" />} />

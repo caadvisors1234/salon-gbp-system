@@ -22,6 +22,7 @@ type NavItem = {
   to: string;
   icon: React.ReactNode;
   adminOnly?: boolean;
+  requireSalonAdmin?: boolean;
 };
 
 type NavSection = {
@@ -55,9 +56,9 @@ const sections: NavSection[] = [
   {
     title: "設定",
     items: [
-      { label: "マイサロン", to: "/settings/salon", icon: <IconSettings className={iconCls} /> },
-      { label: "GBP設定", to: "/settings/gbp", icon: <IconGbp className={iconCls} /> },
-      { label: "Instagram設定", to: "/settings/instagram", icon: <IconInstagram className={iconCls} /> },
+      { label: "マイサロン", to: "/settings/salon", icon: <IconSettings className={iconCls} />, requireSalonAdmin: true },
+      { label: "GBP設定", to: "/settings/gbp", icon: <IconGbp className={iconCls} />, requireSalonAdmin: true },
+      { label: "Instagram設定", to: "/settings/instagram", icon: <IconInstagram className={iconCls} />, requireSalonAdmin: true },
     ],
   },
   {
@@ -86,6 +87,7 @@ export default function Sidebar({
 }) {
   const location = useLocation();
   const isSuperAdmin = role === "super_admin";
+  const isAdmin = role === "super_admin" || role === "salon_admin";
   const sidebarRef = useRef<HTMLElement>(null);
 
   const isActive = (to: string) => {
@@ -123,7 +125,7 @@ export default function Sidebar({
 
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         {sections.map((section) => {
-          const visibleItems = section.items.filter((item) => !item.adminOnly || isSuperAdmin);
+          const visibleItems = section.items.filter((item) => (!item.adminOnly || isSuperAdmin) && (!item.requireSalonAdmin || isAdmin));
           if (visibleItems.length === 0) return null;
           return (
             <div key={section.title}>

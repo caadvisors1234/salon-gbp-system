@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, db_session, get_current_user, require_roles, require_salon
+from app.api.deps import CurrentUser, db_session, require_roles, require_salon
 from app.models.gbp_connection import GbpConnection
 from app.models.gbp_location import GbpLocation
 from app.schemas.gbp import (
@@ -30,7 +30,7 @@ def _get_connection(db: Session, salon_id: uuid.UUID) -> GbpConnection | None:
 @router.get("/connection", response_model=GbpConnectionResponse)
 def get_connection(
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_roles("salon_admin")),
 ) -> GbpConnectionResponse:
     salon_id = require_salon(user)
     conn = _get_connection(db, salon_id)
@@ -42,7 +42,7 @@ def get_connection(
 @router.get("/locations", response_model=list[GbpLocationResponse])
 def list_locations(
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_roles("salon_admin")),
 ) -> list[GbpLocationResponse]:
     salon_id = require_salon(user)
     locs = (
@@ -57,7 +57,7 @@ def list_locations(
 @router.get("/locations/available", response_model=list[GbpAvailableLocation])
 def list_available_locations(
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin", "staff")),
+    user: CurrentUser = Depends(require_roles("salon_admin")),
 ) -> list[GbpAvailableLocation]:
     salon_id = require_salon(user)
     conn = _get_connection(db, salon_id)

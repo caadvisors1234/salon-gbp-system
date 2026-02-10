@@ -30,7 +30,7 @@ def meta_oauth_start(
     account_type: str = Query(default="official"),
     staff_name: str | None = Query(default=None),
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin", "staff")),
+    user: CurrentUser = Depends(require_roles("salon_admin")),
 ):
     _ = db
     settings = get_settings()
