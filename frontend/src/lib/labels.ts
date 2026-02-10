@@ -156,8 +156,8 @@ export function jobStatusLabel(status: string): string {
 
 const JOB_TYPE_LABELS: Record<string, string> = {
   scrape_blog: "ブログ取得",
-  scrape_styles: "スタイル取得",
-  scrape_coupons: "クーポン取得",
+  scrape_style: "スタイル取得",
+  scrape_coupon: "クーポン取得",
   fetch_instagram: "Instagram取得",
   post_gbp_post: "GBP投稿",
   upload_gbp_media: "GBPメディアアップロード",
