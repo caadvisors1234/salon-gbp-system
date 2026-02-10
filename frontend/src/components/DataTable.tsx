@@ -36,7 +36,7 @@ export default function DataTable<T>({
             <thead>
               <tr className="border-b border-stone-100 bg-stone-50/50">
                 {columns.map((col) => (
-                  <th key={col.key} className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500 ${col.className ?? ""}`}>
+                  <th key={col.key} scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500 ${col.className ?? ""}`}>
                     {col.header}
                   </th>
                 ))}
@@ -74,7 +74,7 @@ export default function DataTable<T>({
           <thead>
             <tr className="border-b border-stone-100 bg-stone-50/50">
               {columns.map((col) => (
-                <th key={col.key} className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500 ${col.className ?? ""}`}>
+                <th key={col.key} scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500 ${col.className ?? ""}`}>
                   {col.header}
                 </th>
               ))}
@@ -84,8 +84,19 @@ export default function DataTable<T>({
             {data.map((item) => (
               <tr
                 key={rowKey(item)}
-                className={`transition-colors hover:bg-stone-50/50 ${onRowClick ? "cursor-pointer" : ""}`}
+                className={`transition-colors hover:bg-stone-50/50 ${onRowClick ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-pink-500" : ""}`}
                 onClick={onRowClick ? () => onRowClick(item) : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onRowClick(item);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onRowClick ? 0 : undefined}
               >
                 {columns.map((col) => (
                   <td key={col.key} className={`px-4 py-3 ${col.className ?? ""}`}>

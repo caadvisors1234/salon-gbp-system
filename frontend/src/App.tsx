@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { ToastProvider, useToast } from "./lib/toast";
 import { apiFetch } from "./lib/api";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -25,6 +26,7 @@ function Shell() {
   const { session, loading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const token = session?.access_token;
@@ -48,6 +50,15 @@ function Shell() {
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+
+  // Global unhandled rejection handler
+  useEffect(() => {
+    const handler = (e: PromiseRejectionEvent) => {
+      toast("error", e.reason?.message ?? "予期しないエラーが発生しました");
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, [toast]);
 
   const isLogin = location.pathname === "/login";
 
@@ -93,7 +104,10 @@ function Shell() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onSignOut={async () => {
-          await (await import("./lib/supabase")).supabase.auth.signOut();
+          const { supabase } = await import("./lib/supabase");
+          if (supabase) {
+            await supabase.auth.signOut();
+          }
           navigate("/login");
         }}
       />
@@ -113,29 +127,31 @@ function Shell() {
       {/* Main content */}
       <main id="main-content" className="md:ml-64">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-12">
-              <IconSpinner className="h-6 w-6 text-pink-500" />
-            </div>
-          }>
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/settings/salon" element={<SalonSettingsPage />} />
-              <Route path="/settings/gbp" element={<GbpSettingsPage />} />
-              <Route path="/settings/instagram" element={<InstagramSettingsPage />} />
-              <Route path="/posts/:postId" element={<PostDetailPage />} />
-              <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
-              <Route path="/posts/history" element={<PostsListPage kind="history" />} />
-              <Route path="/media/pending" element={<MediaUploadsPage />} />
-              <Route path="/alerts" element={<AlertsPage />} />
-              <Route path="/admin/salons" element={<AdminSalonsPage />} />
-              <Route path="/admin/monitor" element={<AdminMonitorPage />} />
-              <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
-              <Route path="/admin/users" element={<AdminUsersPage />} />
-              <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
-            </Routes>
-          </Suspense>
+          <ErrorBoundary resetKeys={[location.pathname]}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-12">
+                <IconSpinner className="h-6 w-6 text-pink-500" />
+              </div>
+            }>
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/settings/salon" element={<SalonSettingsPage />} />
+                <Route path="/settings/gbp" element={<GbpSettingsPage />} />
+                <Route path="/settings/instagram" element={<InstagramSettingsPage />} />
+                <Route path="/posts/:postId" element={<PostDetailPage />} />
+                <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
+                <Route path="/posts/history" element={<PostsListPage kind="history" />} />
+                <Route path="/media/pending" element={<MediaUploadsPage />} />
+                <Route path="/alerts" element={<AlertsPage />} />
+                <Route path="/admin/salons" element={<AdminSalonsPage />} />
+                <Route path="/admin/monitor" element={<AdminMonitorPage />} />
+                <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
     </div>
@@ -146,7 +162,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Shell />
+        <ToastProvider>
+          <Shell />
+        </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

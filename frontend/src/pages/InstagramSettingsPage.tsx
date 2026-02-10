@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useToast } from "../lib/toast";
+import { validate, required } from "../lib/validation";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Badge from "../components/Badge";
@@ -11,9 +13,20 @@ import Alert from "../components/Alert";
 import { IconTrash } from "../components/icons";
 import type { InstagramAccountResponse } from "../types/api";
 
+const INITIAL_FORM = {
+  ig_user_id: "",
+  ig_username: "",
+  account_type: "official",
+  staff_name: "",
+  access_token: "",
+  expires_in_days: 60,
+  sync_hashtags: false,
+};
+
 export default function InstagramSettingsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
+  const { toast } = useToast();
   const [search] = useSearchParams();
   const oauth = search.get("oauth");
   const added = search.get("added");
@@ -21,16 +34,8 @@ export default function InstagramSettingsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [staffName, setStaffName] = useState("");
   const [actioningId, setActioningId] = useState<string | null>(null);
-
-  const [form, setForm] = useState({
-    ig_user_id: "",
-    ig_username: "",
-    account_type: "official",
-    staff_name: "",
-    access_token: "",
-    expires_in_days: 60,
-    sync_hashtags: false
-  });
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     document.title = "Instagram設定 | サロンGBP管理";
@@ -51,6 +56,18 @@ export default function InstagramSettingsPage() {
     });
     return () => ac.abort();
   }, [token]);
+
+  const validateManualForm = () => {
+    const errors: Record<string, string> = {};
+    const igUserIdErr = validate(form.ig_user_id, required("IG ユーザーID"));
+    if (igUserIdErr) errors.ig_user_id = igUserIdErr;
+    const igUsernameErr = validate(form.ig_username, required("IG ユーザー名"));
+    if (igUsernameErr) errors.ig_username = igUsernameErr;
+    const tokenErr = validate(form.access_token, required("アクセストークン"));
+    if (tokenErr) errors.access_token = tokenErr;
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   return (
     <div className="space-y-4">
@@ -73,8 +90,8 @@ export default function InstagramSettingsPage() {
                   headers: { "x-requested-with": "fetch" },
                 });
                 window.location.href = res.redirect_url;
-              } catch (e: any) {
-                setErr(e?.message ?? String(e));
+              } catch (e: unknown) {
+                setErr(e instanceof Error ? e.message : String(e));
               }
             }}
           >
@@ -97,8 +114,8 @@ export default function InstagramSettingsPage() {
                     { token, headers: { "x-requested-with": "fetch" } },
                   );
                   window.location.href = res.redirect_url;
-                } catch (e: any) {
-                  setErr(e?.message ?? String(e));
+                } catch (e: unknown) {
+                  setErr(e instanceof Error ? e.message : String(e));
                 }
               }}
             >
@@ -115,6 +132,7 @@ export default function InstagramSettingsPage() {
           className="grid gap-4 sm:grid-cols-2"
           onSubmit={async (e) => {
             e.preventDefault();
+            if (!validateManualForm()) return;
             if (!token) return;
             setErr(null);
             try {
@@ -123,21 +141,23 @@ export default function InstagramSettingsPage() {
                 token,
                 body: JSON.stringify({
                   ...form,
-                  staff_name: form.staff_name || null
-                })
+                  staff_name: form.staff_name || null,
+                }),
               });
-              setForm({ ...form, access_token: "" });
+              setForm(INITIAL_FORM);
+              setFormErrors({});
+              toast("success", "アカウントを追加しました");
               await load();
-            } catch (e2: any) {
-              setErr(e2?.message ?? String(e2));
+            } catch (e2: unknown) {
+              setErr(e2 instanceof Error ? e2.message : String(e2));
             }
           }}
         >
-          <FormField label="IG ユーザーID">
-            <input className={inputClass} value={form.ig_user_id} onChange={(e) => setForm({ ...form, ig_user_id: e.target.value })} required />
+          <FormField label="IG ユーザーID" error={formErrors.ig_user_id}>
+            <input className={inputClass} value={form.ig_user_id} onChange={(e) => setForm({ ...form, ig_user_id: e.target.value })} />
           </FormField>
-          <FormField label="IG ユーザー名">
-            <input className={inputClass} value={form.ig_username} onChange={(e) => setForm({ ...form, ig_username: e.target.value })} required />
+          <FormField label="IG ユーザー名" error={formErrors.ig_username}>
+            <input className={inputClass} value={form.ig_username} onChange={(e) => setForm({ ...form, ig_username: e.target.value })} />
           </FormField>
           <FormField label="アカウント種別">
             <select className={selectClass} value={form.account_type} onChange={(e) => setForm({ ...form, account_type: e.target.value })}>
@@ -148,8 +168,8 @@ export default function InstagramSettingsPage() {
           <FormField label="スタッフ名（任意）">
             <input className={inputClass} value={form.staff_name} onChange={(e) => setForm({ ...form, staff_name: e.target.value })} />
           </FormField>
-          <FormField label="アクセストークン（長期）" className="sm:col-span-2">
-            <input className={inputClass} value={form.access_token} onChange={(e) => setForm({ ...form, access_token: e.target.value })} required />
+          <FormField label="アクセストークン（長期）" className="sm:col-span-2" error={formErrors.access_token}>
+            <input type="password" className={inputClass} value={form.access_token} onChange={(e) => setForm({ ...form, access_token: e.target.value })} />
           </FormField>
           <FormField label="有効日数">
             <input className={inputClass} value={form.expires_in_days} onChange={(e) => setForm({ ...form, expires_in_days: Number(e.target.value) })} type="number" min={1} max={365} />
@@ -171,12 +191,12 @@ export default function InstagramSettingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-stone-100 bg-stone-50/50">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">有効</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ユーザー名</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ユーザーID</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">種別</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ハッシュタグ</th>
-                  <th className="px-4 py-3"></th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">有効</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ユーザー名</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ユーザーID</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">種別</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ハッシュタグ</th>
+                  <th scope="col" className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
@@ -195,11 +215,11 @@ export default function InstagramSettingsPage() {
                             const updated = await apiFetch<InstagramAccountResponse>(`/instagram/accounts/${a.id}`, {
                               method: "PATCH",
                               token,
-                              body: JSON.stringify({ is_active: !a.is_active })
+                              body: JSON.stringify({ is_active: !a.is_active }),
                             });
                             setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
-                          } catch (ex: any) {
-                            setErr(ex?.message ?? String(ex));
+                          } catch (ex: unknown) {
+                            setErr(ex instanceof Error ? ex.message : String(ex));
                           } finally {
                             setActioningId(null);
                           }
@@ -224,11 +244,11 @@ export default function InstagramSettingsPage() {
                             const updated = await apiFetch<InstagramAccountResponse>(`/instagram/accounts/${a.id}`, {
                               method: "PATCH",
                               token,
-                              body: JSON.stringify({ sync_hashtags: !a.sync_hashtags })
+                              body: JSON.stringify({ sync_hashtags: !a.sync_hashtags }),
                             });
                             setAccounts((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
-                          } catch (ex: any) {
-                            setErr(ex?.message ?? String(ex));
+                          } catch (ex: unknown) {
+                            setErr(ex instanceof Error ? ex.message : String(ex));
                           } finally {
                             setActioningId(null);
                           }
@@ -249,8 +269,8 @@ export default function InstagramSettingsPage() {
                           try {
                             await apiFetch<void>(`/instagram/accounts/${a.id}`, { method: "DELETE", token });
                             await load();
-                          } catch (ex: any) {
-                            setErr(ex?.message ?? String(ex));
+                          } catch (ex: unknown) {
+                            setErr(ex instanceof Error ? ex.message : String(ex));
                           } finally {
                             setActioningId(null);
                           }

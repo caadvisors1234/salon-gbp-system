@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useToast } from "../lib/toast";
+import { useApiFetch } from "../hooks/useApiFetch";
+import { validate, required, email as emailValidator, uuid as uuidValidator } from "../lib/validation";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import DataTable, { Column } from "../components/DataTable";
@@ -14,54 +17,46 @@ import type { MeResponse, SalonResponse, AppUserResponse } from "../types/api";
 export default function AdminUsersPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [users, setUsers] = useState<AppUserResponse[]>([]);
-  const [salons, setSalons] = useState<SalonResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const { toast } = useToast();
 
+  useEffect(() => {
+    document.title = "ユーザー管理 | サロンGBP管理";
+  }, []);
+
+  const { data, loading, error, refetch } = useApiFetch<[MeResponse, AppUserResponse[], SalonResponse[]]>(
+    (t, s) =>
+      Promise.all([
+        apiFetch<MeResponse>("/me", { token: t, signal: s }),
+        apiFetch<AppUserResponse[]>("/admin/users", { token: t, signal: s }),
+        apiFetch<SalonResponse[]>("/admin/salons", { token: t, signal: s }),
+      ]),
+  );
+
+  const [me, users, salons] = data ?? [null, [], []];
+  const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState({
     supabase_user_id: "",
     email: "",
     salon_id: "",
     role: "staff",
     display_name: "",
-    is_active: true
+    is_active: true,
   });
-
-  useEffect(() => {
-    document.title = "ユーザー管理 | サロンGBP管理";
-  }, []);
-
-  const load = async (signal?: AbortSignal) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const [meRes, usersRes, salonsRes] = await Promise.all([
-        apiFetch<MeResponse>("/me", { token, signal }),
-        apiFetch<AppUserResponse[]>("/admin/users", { token, signal }),
-        apiFetch<SalonResponse[]>("/admin/salons", { token, signal })
-      ]);
-      setMe(meRes);
-      setUsers(usersRes);
-      setSalons(salonsRes);
-    } catch (e: any) {
-      if (e.name === "AbortError") return;
-      setErr(e?.message ?? String(e));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const ac = new AbortController();
-    load(ac.signal);
-    return () => ac.abort();
-  }, [token]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
   }
+
+  const validateUserForm = () => {
+    const errors: Record<string, string> = {};
+    const uuidErr = validate(form.supabase_user_id, required("Supabase ユーザーID"), uuidValidator());
+    if (uuidErr) errors.supabase_user_id = uuidErr;
+    const emailErr = validate(form.email, required("メールアドレス"), emailValidator());
+    if (emailErr) errors.email = emailErr;
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const roleLabel = (role: string) => {
     switch (role) {
@@ -106,13 +101,14 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="ユーザー管理" description="Supabaseユーザーをサロン・ロールに割り当て" />
-      {err && <Alert variant="error" message={err} dismissible onDismiss={() => setErr(null)} />}
+      {(error || err) && <Alert variant="error" message={error || err!} dismissible onDismiss={() => setErr(null)} />}
 
       <Card title="ユーザー割り当て / 更新">
         <form
           className="grid gap-4 sm:grid-cols-2"
           onSubmit={async (e) => {
             e.preventDefault();
+            if (!validateUserForm()) return;
             if (!token) return;
             setErr(null);
             try {
@@ -125,21 +121,23 @@ export default function AdminUsersPage() {
                   salon_id: form.salon_id || null,
                   role: form.role,
                   display_name: form.display_name || null,
-                  is_active: form.is_active
-                })
+                  is_active: form.is_active,
+                }),
               });
               setForm({ ...form, supabase_user_id: "", email: "" });
-              await load();
-            } catch (e2: any) {
-              setErr(e2?.message ?? String(e2));
+              setFormErrors({});
+              toast("success", "ユーザーを保存しました");
+              refetch();
+            } catch (e2: unknown) {
+              setErr(e2 instanceof Error ? e2.message : String(e2));
             }
           }}
         >
-          <FormField label="Supabase ユーザーID (UUID)" className="sm:col-span-2">
-            <input className={inputClass} value={form.supabase_user_id} onChange={(e) => setForm({ ...form, supabase_user_id: e.target.value })} required />
+          <FormField label="Supabase ユーザーID (UUID)" className="sm:col-span-2" error={formErrors.supabase_user_id}>
+            <input className={inputClass} value={form.supabase_user_id} onChange={(e) => setForm({ ...form, supabase_user_id: e.target.value })} />
           </FormField>
-          <FormField label="メールアドレス" className="sm:col-span-2">
-            <input className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+          <FormField label="メールアドレス" className="sm:col-span-2" error={formErrors.email}>
+            <input type="email" className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </FormField>
           <FormField label="サロン">
             <select className={selectClass} value={form.salon_id} onChange={(e) => setForm({ ...form, salon_id: e.target.value })}>
@@ -171,7 +169,7 @@ export default function AdminUsersPage() {
 
       <div className="flex items-center justify-between">
         <h2 className="font-medium text-stone-900">ユーザー一覧</h2>
-        <Button variant="secondary" onClick={() => load()}>
+        <Button variant="secondary" onClick={refetch}>
           <IconRefresh className="h-4 w-4" />
           再読込
         </Button>

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { useAuth } from "../lib/auth";
+import React, { useEffect } from "react";
 import { apiFetch } from "../lib/api";
+import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
 import Badge, { statusVariant } from "../components/Badge";
@@ -11,40 +11,19 @@ import { formatDateTime } from "../lib/format";
 import type { MeResponse, JobLogResponse } from "../types/api";
 
 export default function AdminJobLogsPage() {
-  const { session } = useAuth();
-  const token = session?.access_token;
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [logs, setLogs] = useState<JobLogResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
   useEffect(() => {
     document.title = "ジョブログ | サロンGBP管理";
   }, []);
 
-  const load = async (signal?: AbortSignal) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const [meRes, logsRes] = await Promise.all([
+  const { data, loading, error, refetch } = useApiFetch<[MeResponse, JobLogResponse[]]>(
+    (token, signal) =>
+      Promise.all([
         apiFetch<MeResponse>("/me", { token, signal }),
         apiFetch<JobLogResponse[]>("/admin/job_logs?limit=200", { token, signal }),
-      ]);
-      setMe(meRes);
-      setLogs(logsRes);
-    } catch (e: any) {
-      if (e.name === "AbortError") return;
-      setErr(e?.message ?? String(e));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  };
+      ]),
+  );
 
-  useEffect(() => {
-    const ac = new AbortController();
-    load(ac.signal);
-    return () => ac.abort();
-  }, [token]);
+  const [me, logs] = data ?? [null, []];
 
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
@@ -94,13 +73,13 @@ export default function AdminJobLogsPage() {
         title="ジョブログ"
         description="スケジュールタスクの実行履歴"
         action={
-          <Button variant="secondary" onClick={() => load()}>
+          <Button variant="secondary" onClick={refetch}>
             <IconRefresh className="h-4 w-4" />
             再読込
           </Button>
         }
       />
-      {err && <Alert variant="error" message={err} />}
+      {error && <Alert variant="error" message={error} />}
       <DataTable
         columns={columns}
         data={logs}

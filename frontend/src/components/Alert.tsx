@@ -51,7 +51,11 @@ export default function Alert({
 
   const v = variants[variant];
   return (
-    <div className={`flex items-start gap-3 rounded-lg border p-3 text-sm animate-fade-in ${v.bg}`}>
+    <div
+      className={`flex items-start gap-3 rounded-lg border p-3 text-sm animate-fade-in ${v.bg}`}
+      role="alert"
+      aria-live={variant === "error" ? "assertive" : "polite"}
+    >
       <span className="mt-0.5 flex-shrink-0">{v.icon}</span>
       <span className="flex-1">{message}</span>
       {dismissible && (
@@ -61,6 +65,7 @@ export default function Alert({
             setVisible(false);
             onDismiss?.();
           }}
+          aria-label="閉じる"
         >
           <IconX className="h-4 w-4" />
         </button>

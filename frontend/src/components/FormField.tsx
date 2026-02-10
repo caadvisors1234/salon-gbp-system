@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 
 type FormFieldProps = {
   label: string;
@@ -8,12 +8,31 @@ type FormFieldProps = {
 };
 
 export default function FormField({ label, error, children, className = "" }: FormFieldProps) {
+  const id = useId();
+  const inputId = `field-${id}`;
+  const errorId = `error-${id}`;
+  const describedBy = error ? errorId : undefined;
+
+  const enhanced = React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+        id: inputId,
+        "aria-describedby": describedBy,
+        "aria-invalid": error ? true : undefined,
+      })
+    : children;
+
   return (
-    <label className={`block ${className}`}>
-      <div className="mb-1.5 text-sm font-medium text-stone-700">{label}</div>
-      {children}
-      {error && <div className="mt-1 text-xs text-red-600">{error}</div>}
-    </label>
+    <div className={`block ${className}`}>
+      <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-stone-700">
+        {label}
+      </label>
+      {enhanced}
+      {error && (
+        <div id={errorId} className="mt-1 text-xs text-red-600" role="alert">
+          {error}
+        </div>
+      )}
+    </div>
   );
 }
 

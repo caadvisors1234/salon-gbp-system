@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Badge, { severityVariant } from "../components/Badge";
@@ -12,42 +12,20 @@ import { formatRelative } from "../lib/format";
 import type { MeResponse, AlertResponse, PostListItem } from "../types/api";
 
 export default function DashboardPage() {
-  const { session } = useAuth();
-  const token = session?.access_token;
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
-  const [pendingPosts, setPendingPosts] = useState<PostListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
   useEffect(() => {
     document.title = "ダッシュボード | サロンGBP管理";
   }, []);
 
-  useEffect(() => {
-    if (!token) return;
-    const ac = new AbortController();
-    setErr(null);
-    setLoading(true);
-    Promise.all([
-      apiFetch<MeResponse>("/me", { token, signal: ac.signal }),
-      apiFetch<AlertResponse[]>("/alerts?status=open", { token, signal: ac.signal }),
-      apiFetch<PostListItem[]>("/posts?status=pending&limit=50", { token, signal: ac.signal })
-    ])
-      .then(([meRes, alertsRes, postsRes]) => {
-        setMe(meRes);
-        setAlerts(alertsRes);
-        setPendingPosts(postsRes);
-      })
-      .catch((e) => {
-        if (e.name === "AbortError") return;
-        setErr(e?.message ?? String(e));
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
-      });
-    return () => ac.abort();
-  }, [token]);
+  const { data, loading, error } = useApiFetch<[MeResponse, AlertResponse[], PostListItem[]]>(
+    (token, signal) =>
+      Promise.all([
+        apiFetch<MeResponse>("/me", { token, signal }),
+        apiFetch<AlertResponse[]>("/alerts?status=open", { token, signal }),
+        apiFetch<PostListItem[]>("/posts?status=pending&limit=50", { token, signal }),
+      ]),
+  );
+
+  const [me, alerts, pendingPosts] = data ?? [null, [], []];
 
   if (loading) {
     return (
@@ -69,7 +47,7 @@ export default function DashboardPage() {
         description={me ? `${me.email}（${me.role}）` : undefined}
       />
 
-      {err && <Alert variant="error" message={err} />}
+      {error && <Alert variant="error" message={error} />}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">

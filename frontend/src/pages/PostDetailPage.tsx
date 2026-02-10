@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useToast } from "../lib/toast";
+import { validate, url as urlValidator, maxLength } from "../lib/validation";
+import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Badge, { statusVariant } from "../components/Badge";
@@ -16,26 +19,32 @@ export default function PostDetailPage() {
   const { postId } = useParams();
   const { session } = useAuth();
   const token = session?.access_token;
+  const { toast } = useToast();
+
+  const { data: fetchedPost, error: fetchErr } = useApiFetch<PostDetail>(
+    postId ? (t, s) => apiFetch(`/posts/${postId}`, { token: t, signal: s }) : null,
+    [postId],
+  );
+
   const [post, setPost] = useState<PostDetail | null>(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     document.title = "投稿詳細 | サロンGBP管理";
   }, []);
 
   useEffect(() => {
-    if (!token || !postId) return;
-    const ac = new AbortController();
-    apiFetch<PostDetail>(`/posts/${postId}`, { token, signal: ac.signal })
-      .then(setPost)
-      .catch((e) => {
-        if (e.name === "AbortError") return;
-        setErr(e?.message ?? String(e));
-      });
-    return () => ac.abort();
-  }, [token, postId]);
+    if (fetchedPost) {
+      setPost(fetchedPost);
+      setFieldErrors({});
+    }
+  }, [fetchedPost]);
+
+  useEffect(() => {
+    if (fetchErr) setErr(fetchErr);
+  }, [fetchErr]);
 
   if (!post) {
     return (
@@ -45,21 +54,39 @@ export default function PostDetailPage() {
     );
   }
 
+  const validateFields = () => {
+    const errors: Record<string, string> = {};
+    const summaryErr = validate(post.summary_final, maxLength(1500));
+    if (summaryErr) errors.summary = summaryErr;
+    if (post.cta_url) {
+      const ctaErr = validate(post.cta_url, urlValidator());
+      if (ctaErr) errors.cta_url = ctaErr;
+    }
+    if (post.offer_redeem_online_url) {
+      const offerErr = validate(post.offer_redeem_online_url, urlValidator());
+      if (offerErr) errors.offer_url = offerErr;
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const action = async (path: string) => {
     if (!token) return;
     setBusy(true);
     setErr(null);
-    setMsg(null);
     try {
       const updated = await apiFetch<PostDetail>(path, { method: "POST", token });
       setPost(updated);
-      setMsg("完了しました");
-    } catch (e2: any) {
-      setErr(e2?.message ?? String(e2));
+      toast("success", "完了しました");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   };
+
+  const charCount = post.summary_final.length;
+  const charOverLimit = charCount > 1500;
 
   return (
     <div className="space-y-4">
@@ -80,12 +107,28 @@ export default function PostDetailPage() {
       </div>
 
       <Card title="投稿テキスト（最終版）">
-        <textarea
-          className={`${textareaClass} h-52 font-mono`}
-          value={post.summary_final}
-          onChange={(e) => setPost({ ...post, summary_final: e.target.value })}
-        />
-        <div className="mt-2 text-xs text-stone-400">最大1500文字 / 現在: {post.summary_final.length}文字</div>
+        <FormField label="本文" error={fieldErrors.summary}>
+          <textarea
+            className={`${textareaClass} h-52 font-mono`}
+            maxLength={1500}
+            value={post.summary_final}
+            onChange={(e) => {
+              const value = e.target.value;
+              setPost({ ...post, summary_final: value });
+              setFieldErrors((prev) => {
+                if (!("summary" in prev)) return prev;
+                const nextErrors = { ...prev };
+                const summaryErr = validate(value, maxLength(1500));
+                if (summaryErr) nextErrors.summary = summaryErr;
+                else delete nextErrors.summary;
+                return nextErrors;
+              });
+            }}
+          />
+        </FormField>
+        <div className={`mt-2 text-xs ${charOverLimit ? "text-red-600 font-medium" : "text-stone-400"}`}>
+          最大1500文字 / 現在: {charCount}文字
+        </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <FormField label="CTAタイプ">
@@ -95,18 +138,48 @@ export default function PostDetailPage() {
               onChange={(e) => setPost({ ...post, cta_type: e.target.value || null })}
             />
           </FormField>
-          <FormField label="CTA URL">
+          <FormField label="CTA URL" error={fieldErrors.cta_url}>
             <input
               className={inputClass}
               value={post.cta_url ?? ""}
-              onChange={(e) => setPost({ ...post, cta_url: e.target.value || null })}
+              onChange={(e) => {
+                const value = e.target.value || null;
+                setPost({ ...post, cta_url: value });
+                setFieldErrors((prev) => {
+                  if (!("cta_url" in prev)) return prev;
+                  const nextErrors = { ...prev };
+                  if (!value) {
+                    delete nextErrors.cta_url;
+                    return nextErrors;
+                  }
+                  const ctaErr = validate(value, urlValidator());
+                  if (ctaErr) nextErrors.cta_url = ctaErr;
+                  else delete nextErrors.cta_url;
+                  return nextErrors;
+                });
+              }}
             />
           </FormField>
-          <FormField label="特典利用URL（OFFERのみ）" className="sm:col-span-2">
+          <FormField label="特典利用URL（OFFERのみ）" className="sm:col-span-2" error={fieldErrors.offer_url}>
             <input
               className={inputClass}
               value={post.offer_redeem_online_url ?? ""}
-              onChange={(e) => setPost({ ...post, offer_redeem_online_url: e.target.value || null })}
+              onChange={(e) => {
+                const value = e.target.value || null;
+                setPost({ ...post, offer_redeem_online_url: value });
+                setFieldErrors((prev) => {
+                  if (!("offer_url" in prev)) return prev;
+                  const nextErrors = { ...prev };
+                  if (!value) {
+                    delete nextErrors.offer_url;
+                    return nextErrors;
+                  }
+                  const offerErr = validate(value, urlValidator());
+                  if (offerErr) nextErrors.offer_url = offerErr;
+                  else delete nextErrors.offer_url;
+                  return nextErrors;
+                });
+              }}
             />
           </FormField>
         </div>
@@ -115,11 +188,12 @@ export default function PostDetailPage() {
           <Button
             variant="secondary"
             loading={busy}
+            disabled={Object.keys(fieldErrors).length > 0}
             onClick={async () => {
+              if (!validateFields()) return;
               if (!token) return;
               setBusy(true);
               setErr(null);
-              setMsg(null);
               try {
                 const updated = await apiFetch<PostDetail>(`/posts/${post.id}`, {
                   method: "PATCH",
@@ -128,13 +202,14 @@ export default function PostDetailPage() {
                     summary_final: post.summary_final,
                     cta_type: post.cta_type ?? null,
                     cta_url: post.cta_url ?? null,
-                    offer_redeem_online_url: post.offer_redeem_online_url ?? null
-                  })
+                    offer_redeem_online_url: post.offer_redeem_online_url ?? null,
+                  }),
                 });
                 setPost(updated);
-                setMsg("保存しました");
-              } catch (e2: any) {
-                setErr(e2?.message ?? String(e2));
+                setFieldErrors({});
+                toast("success", "保存しました");
+              } catch (e: unknown) {
+                setErr(e instanceof Error ? e.message : String(e));
               } finally {
                 setBusy(false);
               }
@@ -169,7 +244,6 @@ export default function PostDetailPage() {
         </div>
 
         {post.error_message && <div className="mt-4"><Alert variant="error" message={post.error_message} /></div>}
-        {msg && <div className="mt-4"><Alert variant="success" message={msg} autoHide onDismiss={() => setMsg(null)} /></div>}
         {err && <div className="mt-4"><Alert variant="error" message={err} dismissible onDismiss={() => setErr(null)} /></div>}
       </Card>
 

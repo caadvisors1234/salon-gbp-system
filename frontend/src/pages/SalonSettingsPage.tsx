@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useToast } from "../lib/toast";
+import { useApiFetch } from "../hooks/useApiFetch";
+import { hotpepperUrl as hotpepperUrlValidator, validate } from "../lib/validation";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Button from "../components/Button";
@@ -9,8 +12,6 @@ import Alert from "../components/Alert";
 import { IconSpinner } from "../components/icons";
 import type { SalonResponse } from "../types/api";
 
-// NOTE: パターンはバックエンド (schemas/salon.py _HOTPEPPER_RE) と同一。
-// URL形式変更時は両方を更新すること。
 function parseHotpepperUrl(url: string) {
   const m = url.match(/beauty\.hotpepper\.jp\/slnH([a-zA-Z0-9]+)/);
   if (!m) return null;
@@ -40,30 +41,42 @@ function HotpepperPreview({ url }: { url: string }) {
 export default function SalonSettingsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
+  const { toast } = useToast();
+
+  const { data: fetchedSalon, error: fetchErr } = useApiFetch<SalonResponse>(
+    (t, s) => apiFetch("/salon/settings", { token: t, signal: s }),
+  );
+
   const [salon, setSalon] = useState<SalonResponse | null>(null);
   const [savedTopUrl, setSavedTopUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = "マイサロン | サロンGBP管理";
   }, []);
 
   useEffect(() => {
-    if (!token) return;
-    const ac = new AbortController();
-    apiFetch<SalonResponse>("/salon/settings", { token, signal: ac.signal })
-      .then((data) => {
-        setSalon(data);
-        setSavedTopUrl(data.hotpepper_top_url ?? null);
-      })
-      .catch((e) => {
-        if (e.name === "AbortError") return;
-        setErr(e?.message ?? String(e));
-      });
-    return () => ac.abort();
-  }, [token]);
+    if (fetchedSalon) {
+      setSalon(fetchedSalon);
+      setSavedTopUrl(fetchedSalon.hotpepper_top_url ?? null);
+    }
+  }, [fetchedSalon]);
+
+  useEffect(() => {
+    if (fetchErr) setErr(fetchErr);
+  }, [fetchErr]);
+
+  // Validate URL on change
+  useEffect(() => {
+    const currentUrl = salon?.hotpepper_top_url ?? "";
+    if (currentUrl) {
+      setUrlError(validate(currentUrl, hotpepperUrlValidator()));
+    } else {
+      setUrlError(null);
+    }
+  }, [salon?.hotpepper_top_url]);
 
   if (!salon) {
     return (
@@ -97,32 +110,31 @@ export default function SalonSettingsPage() {
           className="grid gap-4"
           onSubmit={async (e) => {
             e.preventDefault();
+            if (urlError) return;
             if (!token) return;
             setBusy(true);
             setErr(null);
-            setMsg(null);
             try {
               const topUrlChanged = (salon.hotpepper_top_url ?? null) !== savedTopUrl;
-              // hotpepper_top_url: 未送信(省略)=変更なし, ""=連携解除, URL文字列=更新
               const updated = await apiFetch<SalonResponse>("/salon/settings", {
                 method: "PUT",
                 token,
                 body: JSON.stringify({
                   ...(topUrlChanged ? { hotpepper_top_url: salon.hotpepper_top_url ?? "" } : {}),
-                  is_active: salon.is_active
-                })
+                  is_active: salon.is_active,
+                }),
               });
               setSalon(updated);
               setSavedTopUrl(updated.hotpepper_top_url ?? null);
-              setMsg("保存しました");
-            } catch (e2: any) {
-              setErr(e2?.message ?? String(e2));
+              toast("success", "保存しました");
+            } catch (e2: unknown) {
+              setErr(e2 instanceof Error ? e2.message : String(e2));
             } finally {
               setBusy(false);
             }
           }}
         >
-          <FormField label="HotPepper Beauty サロンページURL">
+          <FormField label="HotPepper Beauty サロンページURL" error={urlError ?? undefined}>
             <input
               className={inputClass}
               placeholder="https://beauty.hotpepper.jp/slnH000232182/"
@@ -141,11 +153,10 @@ export default function SalonSettingsPage() {
             有効
           </label>
 
-          {msg && <Alert variant="success" message={msg} autoHide onDismiss={() => setMsg(null)} />}
           {err && <Alert variant="error" message={err} dismissible onDismiss={() => setErr(null)} />}
 
           <div>
-            <Button variant="primary" loading={busy} type="submit">
+            <Button variant="primary" loading={busy} type="submit" disabled={!!urlError}>
               保存
             </Button>
           </div>

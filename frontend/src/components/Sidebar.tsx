@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   IconDashboard,
@@ -86,11 +86,29 @@ export default function Sidebar({
 }) {
   const location = useLocation();
   const isSuperAdmin = role === "super_admin";
+  const sidebarRef = useRef<HTMLElement>(null);
 
   const isActive = (to: string) => {
     if (to === "/dashboard") return location.pathname === "/dashboard" || location.pathname === "/";
     return location.pathname.startsWith(to);
   };
+
+  // Escape key closes mobile overlay
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  // Focus management for mobile overlay
+  useEffect(() => {
+    if (open && sidebarRef.current) {
+      sidebarRef.current.focus();
+    }
+  }, [open]);
 
   const nav = (
     <nav className="flex h-full flex-col">
@@ -120,6 +138,7 @@ export default function Sidebar({
                       key={item.to}
                       to={item.to}
                       onClick={onClose}
+                      aria-current={active ? "page" : undefined}
                       className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         active
                           ? "bg-pink-50 text-pink-700"
@@ -165,7 +184,13 @@ export default function Sidebar({
       {open && (
         <>
           <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} aria-hidden="true" />
-          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl animate-slide-in" role="dialog" aria-label="ナビゲーション">
+          <aside
+            ref={sidebarRef}
+            className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl animate-slide-in"
+            role="dialog"
+            aria-label="ナビゲーション"
+            tabIndex={-1}
+          >
             {nav}
           </aside>
         </>

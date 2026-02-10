@@ -1,0 +1,166 @@
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "../lib/auth";
+import { apiFetch } from "../lib/api";
+import { useToast } from "../lib/toast";
+import type { GbpConnectionResponse, GbpLocationResponse, GbpAvailableLocation } from "../types/api";
+
+const keyOf = (a: { account_id: string; location_id: string }) => `${a.account_id}::${a.location_id}`;
+
+export function useGbpSettings(oauthParam: string | null) {
+  const { session } = useAuth();
+  const token = session?.access_token;
+  const { toast } = useToast();
+
+  const [conn, setConn] = useState<GbpConnectionResponse | null>(null);
+  const [connErr, setConnErr] = useState<string | null>(null);
+  const [locations, setLocations] = useState<GbpLocationResponse[]>([]);
+  const [available, setAvailable] = useState<GbpAvailableLocation[]>([]);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const fetchData = useCallback(() => {
+    if (!token) return;
+    const ac = new AbortController();
+    setConnErr(null);
+    apiFetch<GbpConnectionResponse>("/gbp/connection", { token, signal: ac.signal })
+      .then(setConn)
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setConn(null);
+        setConnErr(e?.message ?? String(e));
+      });
+    apiFetch<GbpLocationResponse[]>("/gbp/locations", { token, signal: ac.signal })
+      .then(setLocations)
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setLocations([]);
+      });
+    return () => ac.abort();
+  }, [token]);
+
+  useEffect(() => {
+    const cleanup = fetchData();
+    return cleanup;
+  }, [token, oauthParam]);
+
+  useEffect(() => {
+    const s: Record<string, boolean> = {};
+    for (const l of locations) s[keyOf(l)] = l.is_active;
+    setSelected(s);
+  }, [locations]);
+
+  const startOAuth = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiFetch<{ redirect_url: string }>("/oauth/google/start", {
+        token,
+        headers: { "x-requested-with": "fetch" },
+      });
+      window.location.href = res.redirect_url;
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [token]);
+
+  const refreshLocations = useCallback(async () => {
+    if (!token) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const locs = await apiFetch<GbpLocationResponse[]>("/gbp/locations", { token });
+      setLocations(locs);
+      toast("success", "再読込しました");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [token, toast]);
+
+  const fetchAvailable = useCallback(async () => {
+    if (!token) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const locs = await apiFetch<GbpAvailableLocation[]>("/gbp/locations/available", { token });
+      setAvailable(locs);
+      toast("success", `${locs.length}件のロケーションを取得しました`);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [token, toast]);
+
+  const saveSelected = useCallback(async () => {
+    if (!token) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const chosen = available.filter((a) => selected[keyOf(a)]);
+      const saved = await apiFetch<GbpLocationResponse[]>("/gbp/locations/select", {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          locations: chosen.map((c) => ({
+            account_id: c.account_id,
+            location_id: c.location_id,
+            location_name: c.location_name ?? null,
+            is_active: true,
+          })),
+        }),
+      });
+      setLocations(saved);
+      toast("success", `${saved.length}件のロケーションを保存しました`);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [token, available, selected, toast]);
+
+  const toggleLocation = useCallback(
+    async (id: string) => {
+      if (!token) return;
+      setTogglingId(id);
+      try {
+        const loc = locations.find((l) => l.id === id);
+        if (!loc) return;
+        const updated = await apiFetch<GbpLocationResponse>(`/gbp/locations/${id}`, {
+          method: "PATCH",
+          token,
+          body: JSON.stringify({ is_active: !loc.is_active }),
+        });
+        setLocations((prev) => prev.map((x) => (x.id === id ? updated : x)));
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        setTogglingId(null);
+      }
+    },
+    [token, locations],
+  );
+
+  return {
+    conn,
+    connErr,
+    locations,
+    available,
+    selected,
+    setSelected,
+    busy,
+    err,
+    setErr,
+    togglingId,
+    startOAuth,
+    refreshLocations,
+    fetchAvailable,
+    saveSelected,
+    toggleLocation,
+    refetch: fetchData,
+  };
+}
+
+export { keyOf };

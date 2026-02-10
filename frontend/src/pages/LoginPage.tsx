@@ -33,6 +33,10 @@ export default function LoginPage() {
             onSubmit={async (e) => {
               e.preventDefault();
               setError(null);
+              if (!supabase) {
+                setError("Supabase が設定されていません（VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY）");
+                return;
+              }
               setBusy(true);
               try {
                 const { error: err } = await supabase.auth.signInWithPassword({ email, password });

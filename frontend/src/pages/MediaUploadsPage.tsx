@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
 import Badge, { statusVariant } from "../components/Badge";
@@ -12,34 +13,16 @@ import type { MediaUploadListItem } from "../types/api";
 export default function MediaUploadsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [uploads, setUploads] = useState<MediaUploadListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const { data: uploads, loading, error, refetch } = useApiFetch<MediaUploadListItem[]>(
+    (t, s) => apiFetch("/media_uploads?status=pending&limit=200", { token: t, signal: s }),
+  );
 
   useEffect(() => {
     document.title = "メディア | サロンGBP管理";
   }, []);
-
-  const load = async (signal?: AbortSignal) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const res = await apiFetch<MediaUploadListItem[]>("/media_uploads?status=pending&limit=200", { token, signal });
-      setUploads(res);
-    } catch (e: any) {
-      if (e.name === "AbortError") return;
-      setErr(e?.message ?? String(e));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const ac = new AbortController();
-    load(ac.signal);
-    return () => ac.abort();
-  }, [token]);
 
   const columns: Column<MediaUploadListItem>[] = [
     {
@@ -79,9 +62,9 @@ export default function MediaUploadsPage() {
             setErr(null);
             try {
               await apiFetch<MediaUploadListItem>(`/media_uploads/${u.id}/approve`, { method: "POST", token });
-              await load();
-            } catch (ex: any) {
-              setErr(ex?.message ?? String(ex));
+              refetch();
+            } catch (ex: unknown) {
+              setErr(ex instanceof Error ? ex.message : String(ex));
             } finally {
               setActioningId(null);
             }
@@ -99,16 +82,16 @@ export default function MediaUploadsPage() {
         title="メディアアップロード"
         description="承認するとGBP Media APIへアップロードされます"
         action={
-          <Button variant="secondary" onClick={() => load()}>
+          <Button variant="secondary" onClick={refetch}>
             <IconRefresh className="h-4 w-4" />
             再読込
           </Button>
         }
       />
-      {err && <Alert variant="error" message={err} />}
+      {(error || err) && <Alert variant="error" message={error || err!} />}
       <DataTable
         columns={columns}
-        data={uploads}
+        data={uploads ?? []}
         rowKey={(u) => u.id}
         loading={loading}
         emptyMessage="承認待ちのメディアはありません"

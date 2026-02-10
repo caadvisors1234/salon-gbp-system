@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
 import Badge, { severityVariant, statusVariant } from "../components/Badge";
@@ -14,35 +15,18 @@ import type { AlertResponse } from "../types/api";
 export default function AlertsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
-  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("open");
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const { data: alerts, loading, error, refetch } = useApiFetch<AlertResponse[]>(
+    (t, s) => apiFetch(`/alerts?status=${encodeURIComponent(statusFilter)}`, { token: t, signal: s }),
+    [statusFilter],
+  );
 
   useEffect(() => {
     document.title = "アラート | サロンGBP管理";
   }, []);
-
-  const load = async (signal?: AbortSignal) => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const res = await apiFetch<AlertResponse[]>(`/alerts?status=${encodeURIComponent(statusFilter)}`, { token, signal });
-      setAlerts(res);
-    } catch (e: any) {
-      if (e.name === "AbortError") return;
-      setErr(e?.message ?? String(e));
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const ac = new AbortController();
-    load(ac.signal);
-    return () => ac.abort();
-  }, [token, statusFilter]);
 
   const columns: Column<AlertResponse>[] = [
     {
@@ -84,9 +68,9 @@ export default function AlertsPage() {
                 setErr(null);
                 try {
                   await apiFetch(`/alerts/${a.id}/ack`, { method: "POST", token });
-                  await load();
-                } catch (ex: any) {
-                  setErr(ex?.message ?? String(ex));
+                  refetch();
+                } catch (ex: unknown) {
+                  setErr(ex instanceof Error ? ex.message : String(ex));
                 } finally {
                   setActioningId(null);
                 }
@@ -108,9 +92,9 @@ export default function AlertsPage() {
                 setErr(null);
                 try {
                   await apiFetch(`/alerts/${a.id}/resolve`, { method: "POST", token });
-                  await load();
-                } catch (ex: any) {
-                  setErr(ex?.message ?? String(ex));
+                  refetch();
+                } catch (ex: unknown) {
+                  setErr(ex instanceof Error ? ex.message : String(ex));
                 } finally {
                   setActioningId(null);
                 }
@@ -140,17 +124,17 @@ export default function AlertsPage() {
               <option value="acked">確認済み</option>
               <option value="resolved">解決済み</option>
             </select>
-            <Button variant="secondary" onClick={() => load()}>
+            <Button variant="secondary" onClick={refetch}>
               <IconRefresh className="h-4 w-4" />
               再読込
             </Button>
           </div>
         }
       />
-      {err && <Alert variant="error" message={err} />}
+      {(error || err) && <Alert variant="error" message={error || err!} />}
       <DataTable
         columns={columns}
-        data={alerts}
+        data={alerts ?? []}
         rowKey={(a) => a.id}
         loading={loading}
         emptyMessage="アラートはありません"

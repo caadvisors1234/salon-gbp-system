@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
+import { useApiFetch } from "../hooks/useApiFetch";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
 import Badge, { statusVariant } from "../components/Badge";
@@ -10,42 +10,25 @@ import { formatDateTime } from "../lib/format";
 import type { PostListItem } from "../types/api";
 
 export default function PostsListPage({ kind }: { kind: "pending" | "history" }) {
-  const { session } = useAuth();
-  const token = session?.access_token;
   const navigate = useNavigate();
-  const [posts, setPosts] = useState<PostListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
   const title = kind === "pending" ? "承認待ち投稿" : "投稿履歴";
 
   useEffect(() => {
     document.title = `${title} | サロンGBP管理`;
   }, [title]);
 
-  useEffect(() => {
-    if (!token) return;
-    const ac = new AbortController();
-    setErr(null);
-    setLoading(true);
-    const path = kind === "pending" ? "/posts?status=pending&limit=200" : "/posts?limit=200";
-    apiFetch<PostListItem[]>(path, { token, signal: ac.signal })
-      .then((res) => {
-        const filtered =
-          kind === "pending"
-            ? res
-            : res.filter((p) => !["pending", "queued", "posting"].includes(p.status));
-        setPosts(filtered);
-      })
-      .catch((e) => {
-        if (e.name === "AbortError") return;
-        setErr(e?.message ?? String(e));
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
-      });
-    return () => ac.abort();
-  }, [token, kind]);
+  const path = kind === "pending" ? "/posts?status=pending&limit=200" : "/posts?limit=200";
+  const { data: rawPosts, loading, error } = useApiFetch<PostListItem[]>(
+    (token, signal) => apiFetch(path, { token, signal }),
+    [kind],
+  );
+
+  const posts = useMemo(() => {
+    if (!rawPosts) return [];
+    return kind === "pending"
+      ? rawPosts
+      : rawPosts.filter((p) => !["pending", "queued", "posting"].includes(p.status));
+  }, [rawPosts, kind]);
 
   const columns: Column<PostListItem>[] = [
     {
@@ -87,7 +70,7 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
   return (
     <div className="space-y-4">
       <PageHeader title={title} description="クリックして編集・承認・再試行" />
-      {err && <Alert variant="error" message={err} />}
+      {error && <Alert variant="error" message={error} />}
       <DataTable
         columns={columns}
         data={posts}
