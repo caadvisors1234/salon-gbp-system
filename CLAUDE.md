@@ -39,6 +39,12 @@ cd frontend && npm run dev
 
 # Type-check and build
 cd frontend && npm run build
+
+# Run all tests
+cd frontend && npm run test
+
+# Run a single test file
+cd frontend && npx vitest run src/components/__tests__/Button.test.tsx
 ```
 
 ### Access Points (via Nginx on port 8080)
@@ -84,7 +90,7 @@ React 18 + Vite + TypeScript (strict) + Tailwind CSS. Minimal dependencies (no s
 6. Tasks call GBP API; failures create `Alert` records and update `JobLog`
 
 ### Deployment (`deploy/`)
-Docker Compose with 6 services: nginx (reverse proxy, port 8080), frontend (Vite dev server), api (FastAPI/uvicorn), worker (Celery), beat (Celery Beat), db (PostgreSQL 16), redis (Redis 7). Nginx routes `/api/` to backend, `/media/` to static files, `/` to frontend.
+Docker Compose with 7 services: nginx (reverse proxy, port 8080), frontend (Vite dev server, port 5173), api (FastAPI/uvicorn, port 8000), worker (Celery), beat (Celery Beat), db (PostgreSQL 16), redis (Redis 7). Nginx routes `/api/` to backend, `/media/` to static files, `/` to frontend.
 
 ## Environment Configuration
 
@@ -100,4 +106,4 @@ Copy `.env.example` to `.env`. Key variables:
 
 ## Database
 
-PostgreSQL with 11 tables. Initial schema in `backend/alembic/versions/0001_init.py`. All primary keys are UUIDs (`gen_random_uuid()`). `source_contents` has a unique constraint on `(salon_id, source_type, source_id)` to prevent duplicate ingestion.
+PostgreSQL with 12 tables. Initial schema in `backend/alembic/versions/0001_init.py`, with check constraints in `0002` and `scrape_seeded` tracking table in `0003`. All primary keys are UUIDs (`gen_random_uuid()`). `source_contents` has a unique constraint on `(salon_id, source_type, source_id)` to prevent duplicate ingestion.
