@@ -4,7 +4,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 from bs4 import BeautifulSoup, Tag
@@ -16,6 +16,12 @@ from app.scrapers.selector_loader import load_selectors
 logger = logging.getLogger(__name__)
 
 _BRACKET_RE = re.compile(r"^.*?(?=【)")
+
+
+def _strip_query(url: str) -> str:
+    """Remove query string and fragment from a URL to get the full-resolution image."""
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
 
 
 @dataclass(frozen=True)
@@ -49,7 +55,7 @@ def _extract_styles_from_soup(
         if not src:
             continue
 
-        image_url = urljoin(base_url, src)
+        image_url = _strip_query(urljoin(base_url, src))
 
         # Find the detail page URL from the parent <a> tag
         page_url = base_url

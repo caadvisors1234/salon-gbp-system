@@ -4,7 +4,7 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 from bs4 import BeautifulSoup
@@ -20,6 +20,12 @@ class BlogArticle:
     body_html: str
     image_urls: list[str]
     published_at: datetime | None
+
+
+def _strip_query(url: str) -> str:
+    """Remove query string and fragment from a URL to get the full-resolution image."""
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
 
 
 def _soup(html: str) -> BeautifulSoup:
@@ -103,7 +109,7 @@ def fetch_blog_article(*, url: str) -> BlogArticle:
         src = img.get("src") or img.get("data-src") or img.get("data-original")
         if not src:
             continue
-        image_urls.append(urljoin(url, src))
+        image_urls.append(_strip_query(urljoin(url, src)))
     # de-dupe, keep order
     seen: set[str] = set()
     image_urls = [x for x in image_urls if not (x in seen or seen.add(x))]
