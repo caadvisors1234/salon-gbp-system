@@ -5,6 +5,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from celery.exceptions import MaxRetriesExceededError
@@ -51,6 +52,36 @@ from app.worker.scraper_helpers import (
 
 def _now() -> datetime:
     return datetime.now(tz=timezone.utc)
+
+
+def _is_private_hostname(hostname: str) -> bool:
+    """ループバックまたはRFC 1918プライベートIPかどうかを判定する。"""
+    if hostname in ("localhost", "127.0.0.1", "::1"):
+        return True
+    if hostname.startswith(("192.168.", "10.")):
+        return True
+    if hostname.startswith("172."):
+        parts = hostname.split(".")
+        if len(parts) >= 2 and parts[1].isdigit():
+            second_octet = int(parts[1])
+            if 16 <= second_octet <= 31:
+                return True
+    return False
+
+
+def _resolve_public_url(asset: MediaAsset) -> str | None:
+    """公開アクセス可能なURLを返す。localhostの場合はsource_urlにフォールバック。解決不能ならNone。"""
+    parsed = urlsplit(asset.public_url)
+    hostname = (parsed.hostname or "").lower()
+    if _is_private_hostname(hostname):
+        if asset.source_url:
+            parts = urlsplit(asset.source_url)
+            clean = urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+            logger.info("Asset %s: private address detected, using source_url: %s", asset.id, clean)
+            return clean
+        logger.warning("Asset %s: private address %s but no source_url to fall back to", asset.id, hostname)
+        return None
+    return asset.public_url
 
 
 def _start_job(db: Session, *, salon_id: uuid.UUID | None, job_type: str) -> JobLog:
@@ -655,7 +686,24 @@ def post_gbp_post(self, gbp_post_id: str) -> None:
         if post.image_asset_id:
             asset = db.query(MediaAsset).filter(MediaAsset.id == post.image_asset_id).one_or_none()
             if asset and asset.status == "available":
-                image_url = asset.public_url
+                image_url = _resolve_public_url(asset)
+                if image_url is None:
+                    error_msg = "Image URL is a private address with no public fallback"
+                    post.status = "failed"
+                    post.error_message = error_msg
+                    db.add(post)
+                    db.commit()
+                    logger.warning("post_gbp_post failed (no public URL) post_id=%s", gbp_post_id)
+                    create_alert(
+                        db,
+                        salon_id=post.salon_id,
+                        severity="warning",
+                        alert_type="gbp_post_failed",
+                        message=f"GBP post failed: {error_msg}",
+                        entity_type="gbp_post",
+                        entity_id=post.id,
+                    )
+                    return
 
         try:
             access_token = get_access_token(db, conn)
@@ -765,13 +813,32 @@ def upload_gbp_media(self, upload_id: str) -> None:
             db.commit()
             return
 
+        source_url = _resolve_public_url(asset)
+        if source_url is None:
+            error_msg = "Media URL is a private address with no public fallback"
+            up.status = "failed"
+            up.error_message = error_msg
+            db.add(up)
+            db.commit()
+            logger.warning("upload_gbp_media failed (no public URL) upload_id=%s", upload_id)
+            create_alert(
+                db,
+                salon_id=up.salon_id,
+                severity="warning",
+                alert_type="gbp_media_failed",
+                message=f"GBP media upload failed: {error_msg}",
+                entity_type="gbp_media_upload",
+                entity_id=up.id,
+            )
+            return
+
         try:
             access_token = get_access_token(db, conn)
             payload = gbp_client.upload_media(
                 access_token=access_token,
                 account_id=loc.account_id,
                 location_id=loc.location_id,
-                source_url=asset.public_url,
+                source_url=source_url,
                 category=up.category,
                 media_format=up.media_format,
             )
