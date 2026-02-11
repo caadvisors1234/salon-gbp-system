@@ -1,0 +1,193 @@
+# Production Docker Compose for VPS deployment at /opt/salon-gbp/
+# Usage: docker compose --env-file .env -f deploy/docker-compose.prod.yml up -d --build
+#
+# IMPORTANT: --env-file .env is required because Compose resolves ${...} variables
+# from the compose file's directory (deploy/), not the working directory.
+#
+# Prerequisites:
+#   - .env file at repo root with production values
+#   - External Docker network: docker network create app-network
+#   - NPM gateway routing salon-gbp.ai-beauty.tokyo -> salon_gbp_web:8000
+
+name: salon-gbp
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        VITE_API_BASE: /api
+    container_name: salon_gbp_web
+    restart: unless-stopped
+    volumes:
+      - media_data:/data/media:ro
+    networks:
+      - internal
+      - app-network
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  api:
+    build:
+      context: ../backend
+    container_name: salon_gbp_api
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - APP_ENV=production
+    volumes:
+      - media_data:/data/media
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  worker:
+    build:
+      context: ../backend
+    container_name: salon_gbp_worker
+    command: >
+      celery -A app.worker.celery_app.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --max-tasks-per-child=100
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - APP_ENV=production
+    volumes:
+      - media_data:/data/media
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker.celery_app.celery_app inspect ping --timeout 10 2>/dev/null || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  beat:
+    build:
+      context: ../backend
+    container_name: salon_gbp_beat
+    command: >
+      celery -A app.worker.celery_app.celery_app beat
+      --loglevel=info
+      --pidfile=/tmp/celerybeat.pid
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - APP_ENV=production
+    volumes:
+      - media_data:/data/media
+    networks:
+      - internal
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/celerybeat.pid && kill -0 $$(cat /tmp/celerybeat.pid) 2>/dev/null || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  db:
+    image: postgres:16-alpine
+    container_name: salon_gbp_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-salon_gbp}
+      POSTGRES_USER: ${POSTGRES_USER:-salon_gbp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-salon_gbp} -d ${POSTGRES_DB:-salon_gbp}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    container_name: salon_gbp_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 192M
+
+volumes:
+  postgres_data:
+  media_data:
+
+networks:
+  internal:
+    driver: bridge
+  app-network:
+    external: true

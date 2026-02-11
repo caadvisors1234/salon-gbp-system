@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from functools import lru_cache
 from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 

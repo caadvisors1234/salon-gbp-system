@@ -1,0 +1,14 @@
+target-version = "py312"
+line-length = 130
+
+[lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E741",  # ambiguous variable name (stylistic)
+]
+
+[lint.per-file-ignores]
+"alembic/versions/*.py" = ["E501", "W291"]
+"alembic/env.py" = ["F401"]          # intentional import for model registration
+"app/worker/tasks.py" = ["E402"]     # logging setup before imports (intentional pattern)
+"tests/*.py" = ["E501", "F401"]      # test fixtures and model registration imports

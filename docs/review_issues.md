@@ -14,7 +14,7 @@
 
 ### INFRA-001: フロントエンドが Vite 開発サーバーで動作している
 - **分類**: Infra
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `deploy/docker-compose.yml` L48-58
 - **内容**: `npm run dev` で Vite dev server を起動しており、本番利用不可。HMR用WebSocket設定もdev前提。
 - **対応**: `frontend/Dockerfile` をマルチステージビルドで作成し、`npm run build` → Nginx で静的配信に変更する。
@@ -22,14 +22,14 @@
 
 ### INFRA-002: CI/CD パイプラインが存在しない
 - **分類**: Infra
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `.github/workflows/` が存在しない
 - **内容**: 自動テスト、リント、ビルド検証、デプロイが一切自動化されていない。
 - **対応**: GitHub Actions を構築。Backend: pytest + ruff + mypy、Frontend: tsc + vitest + build、Docker: イメージビルド検証。
 
 ### SEC-001: Nginx にセキュリティヘッダーが未設定
 - **分類**: Security
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `deploy/nginx/conf.d/default.conf`
 - **内容**: 以下のヘッダーがすべて欠落:
   - `X-Frame-Options` (クリックジャッキング防止)
@@ -71,7 +71,7 @@
 
 ### INFRA-003: Docker Compose にヘルスチェック・再起動ポリシーがない
 - **分類**: Infra
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `deploy/docker-compose.yml`
 - **内容**: 全サービスに `healthcheck` と `restart` ディレクティブがない。コンテナがサイレントに失敗しても再起動されない。
 - **対応**: 全サービスに追加:
@@ -86,14 +86,14 @@
 
 ### INFRA-004: DB パスワードが docker-compose.yml にハードコード
 - **分類**: Security / Infra
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `deploy/docker-compose.yml` L62-65
 - **内容**: `POSTGRES_PASSWORD: salon_gbp` がプレーンテキストで記載。
 - **対応**: `${POSTGRES_PASSWORD}` に変更し `.env` から読み込む。
 
 ### SEC-003: Dockerfile に ca-certificates がない
 - **分類**: Security
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `backend/Dockerfile` L8-10
 - **内容**: `ca-certificates` パッケージ未インストール。OAuth フロー（Google, Meta）のTLS検証が失敗する可能性。
 - **対応**: apt-get に `ca-certificates` を追加:
@@ -165,7 +165,7 @@
 
 ### INFRA-005: Docker Compose にリソース制限がない
 - **分類**: Infra
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `deploy/docker-compose.yml`
 - **内容**: CPU/メモリ制限未設定。暴走コンテナがホストリソースを枯渇させるリスク。
 - **対応**: 各サービスに `deploy.resources.limits` を追加:
@@ -179,14 +179,14 @@
 
 ### INFRA-006: Celery ワーカーの `max-tasks-per-child` 未設定
 - **分類**: Infra / Performance
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `deploy/docker-compose.yml` (worker コマンド)
 - **内容**: Celery ワーカーがタスク処理でメモリリークした場合、プロセスが再起動されない。
 - **対応**: コマンドに `--max-tasks-per-child=100` を追加。
 
 ### INFRA-007: Nginx で gzip 圧縮が未有効
 - **分類**: Performance
-- **状態**: `[ ]`
+- **状態**: `[x]`
 - **場所**: `deploy/nginx/conf.d/default.conf`
 - **内容**: API レスポンスや静的ファイルの gzip 圧縮がない。帯域使用量増加。
 - **対応**: nginx.conf に追加:
