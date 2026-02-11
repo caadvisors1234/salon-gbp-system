@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from datetime import date
+
 import httpx
 import respx
 from httpx import Response
@@ -193,3 +196,121 @@ def test_list_accounts_error_on_second_page_raises():
     )
     with pytest.raises(httpx.HTTPStatusError):
         list_accounts(access_token="t")
+
+
+# --- OFFER event object tests ---
+
+
+@respx.mock
+def test_create_local_post_offer_includes_event():
+    """OFFER投稿のリクエストボディにeventオブジェクトが含まれることを検証する。"""
+    route = respx.post(f"{GBP_BASE_V4}/accounts/a1/locations/l1/localPosts").mock(
+        return_value=Response(200, json={"name": "post/offer1"})
+    )
+    result = create_local_post(
+        access_token="tok",
+        account_id="a1",
+        location_id="l1",
+        summary="クーポン内容",
+        image_url=None,
+        cta_type=None,
+        cta_url=None,
+        topic_type="OFFER",
+        offer_redeem_online_url="https://example.com/coupon",
+        event_title="特典タイトル",
+        event_start_date=date(2026, 2, 11),
+        event_end_date=date(2026, 3, 11),
+    )
+    assert route.called
+    assert result == {"name": "post/offer1"}
+
+    body = json.loads(route.calls[0].request.content)
+    assert body["topicType"] == "OFFER"
+    assert "event" in body
+    assert body["event"]["title"] == "特典タイトル"
+    assert body["event"]["schedule"]["startDate"] == {"year": 2026, "month": 2, "day": 11}
+    assert body["event"]["schedule"]["endDate"] == {"year": 2026, "month": 3, "day": 11}
+    assert body["offer"] == {"redeemOnlineUrl": "https://example.com/coupon"}
+
+
+@respx.mock
+def test_create_local_post_standard_no_event():
+    """STANDARD投稿のリクエストボディにeventオブジェクトが含まれないことを確認する。"""
+    route = respx.post(f"{GBP_BASE_V4}/accounts/a1/locations/l1/localPosts").mock(
+        return_value=Response(200, json={"name": "post/std1"})
+    )
+    create_local_post(
+        access_token="tok",
+        account_id="a1",
+        location_id="l1",
+        summary="通常投稿",
+        image_url=None,
+        cta_type=None,
+        cta_url=None,
+        topic_type="STANDARD",
+    )
+    assert route.called
+    body = json.loads(route.calls[0].request.content)
+    assert body["topicType"] == "STANDARD"
+    assert "event" not in body
+    assert "offer" not in body
+
+
+def test_create_local_post_offer_without_event_fields_raises():
+    """OFFER投稿でeventフィールドがすべて未設定の場合、ValueErrorが発生することを確認する。"""
+    with pytest.raises(ValueError, match="OFFER post requires"):
+        create_local_post(
+            access_token="tok",
+            account_id="a1",
+            location_id="l1",
+            summary="クーポン",
+            image_url=None,
+            cta_type=None,
+            cta_url=None,
+            topic_type="OFFER",
+            offer_redeem_online_url="https://example.com/coupon",
+        )
+
+
+def test_create_local_post_offer_partial_event_fields_raises():
+    """OFFER投稿でeventフィールドが一部のみ設定されている場合、ValueErrorが発生することを確認する。"""
+    with pytest.raises(ValueError, match="incomplete event fields"):
+        create_local_post(
+            access_token="tok",
+            account_id="a1",
+            location_id="l1",
+            summary="クーポン",
+            image_url=None,
+            cta_type=None,
+            cta_url=None,
+            topic_type="OFFER",
+            event_title="タイトルのみ",
+        )
+
+
+@respx.mock
+def test_create_local_post_offer_sanitizes_event_title():
+    """OFFER投稿でevent_titleが改行を含む場合、サニタイズされることを検証する。"""
+    route = respx.post(f"{GBP_BASE_V4}/accounts/a1/locations/l1/localPosts").mock(
+        return_value=Response(200, json={"name": "post/offer3"})
+    )
+    long_title_with_newlines = "学割U24\n[全員]\n¥12,990\n" + "あ" * 100
+    create_local_post(
+        access_token="tok",
+        account_id="a1",
+        location_id="l1",
+        summary="クーポン内容",
+        image_url=None,
+        cta_type=None,
+        cta_url=None,
+        topic_type="OFFER",
+        offer_redeem_online_url="https://example.com/coupon",
+        event_title=long_title_with_newlines,
+        event_start_date=date(2026, 2, 11),
+        event_end_date=date(2026, 3, 11),
+    )
+    assert route.called
+    body = json.loads(route.calls[0].request.content)
+    title = body["event"]["title"]
+    assert "\n" not in title
+    assert len(title) <= 58

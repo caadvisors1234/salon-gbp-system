@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,6 +44,10 @@ class GbpPost(Base, UUIDPrimaryKeyMixin, CreatedAtMixin, SalonScopedMixin):
     cta_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     offer_redeem_online_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    event_title: Mapped[str | None] = mapped_column(String(58), nullable=True)
+    event_start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    event_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     gbp_post_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

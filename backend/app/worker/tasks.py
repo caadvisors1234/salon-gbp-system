@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -29,7 +29,7 @@ from app.models.source_content import SourceContent
 from app.scrapers.hotpepper_blog import fetch_blog_article, fetch_blog_links
 from app.scrapers.hotpepper_coupon import fetch_coupons
 from app.scrapers.hotpepper_style import fetch_style_images
-from app.scrapers.text_transform import hotpepper_blog_to_gbp, instagram_caption_to_gbp
+from app.scrapers.text_transform import hotpepper_blog_to_gbp, instagram_caption_to_gbp, sanitize_event_title
 from app.services import gbp_client
 from app.services.alerts import create_alert
 from app.services.gbp_tokens import get_access_token
@@ -48,6 +48,9 @@ from app.worker.scraper_helpers import (
     is_seeded,
     mark_seeded,
 )
+
+
+DEFAULT_OFFER_EVENT_DAYS = 30
 
 
 def _now() -> datetime:
@@ -197,8 +200,6 @@ def cleanup_media_assets() -> dict[str, Any]:
 @celery_app.task(name="app.worker.tasks.refresh_instagram_tokens")
 def refresh_instagram_tokens() -> dict[str, Any]:
     """Refresh Instagram long-lived tokens expiring within 14 days."""
-    from datetime import timedelta
-
     settings = get_settings()
     refreshed = 0
     failed = 0
@@ -501,6 +502,7 @@ def scrape_hotpepper_coupon() -> dict[str, Any]:
                         if not seeding:
                             summary = f"{c.title}\n{c.body_text}".strip()
                             summary = summary[:1500]
+                            today = date.today()
 
                             create_gbp_posts_for_source(
                                 db,
@@ -512,6 +514,9 @@ def scrape_hotpepper_coupon() -> dict[str, Any]:
                                 cta_type=None,
                                 cta_url=None,
                                 offer_redeem_online_url=coupon_url,
+                                event_title=sanitize_event_title(c.title if c.title else summary),
+                                event_start_date=today,
+                                event_end_date=today + timedelta(days=DEFAULT_OFFER_EVENT_DAYS),
                             )
                             db.commit()
                         processed += 1
@@ -755,6 +760,9 @@ def post_gbp_post(self, gbp_post_id: str) -> None:
                 cta_url=post.cta_url,
                 topic_type=post.post_type,
                 offer_redeem_online_url=post.offer_redeem_online_url,
+                event_title=post.event_title,
+                event_start_date=post.event_start_date,
+                event_end_date=post.event_end_date,
             )
             post.gbp_post_id = str(payload.get("name") or payload.get("id") or "")
             post.status = "posted"

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -37,6 +37,9 @@ def create_gbp_posts_for_source(
     cta_type: str | None,
     cta_url: str | None,
     offer_redeem_online_url: str | None,
+    event_title: str | None = None,
+    event_start_date: date | None = None,
+    event_end_date: date | None = None,
 ) -> list[GbpPost]:
     """Create pending GbpPost for each active location, skipping duplicates."""
     locations = _active_gbp_locations(db, salon_id)
@@ -64,6 +67,9 @@ def create_gbp_posts_for_source(
             cta_type=cta_type,
             cta_url=cta_url,
             offer_redeem_online_url=offer_redeem_online_url,
+            event_title=event_title,
+            event_start_date=event_start_date,
+            event_end_date=event_end_date,
             status="pending",
             error_message=None,
             posted_at=None,

@@ -15,6 +15,27 @@ from app.worker.tasks import post_gbp_post
 router = APIRouter()
 
 
+def _validate_offer_fields(post: GbpPost) -> None:
+    """Raise 422 if an OFFER post is missing or has invalid event fields."""
+    if post.post_type != "OFFER":
+        return
+    if not (post.event_title and post.event_start_date and post.event_end_date):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="OFFER posts require event_title, event_start_date, and event_end_date",
+        )
+    if len(post.event_title) > 58:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="event_title must be 58 characters or fewer",
+        )
+    if post.event_start_date > post.event_end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="event_end_date must be on or after event_start_date",
+        )
+
+
 @router.get("", response_model=list[PostListItem])
 def list_posts(
     status_filter: str | None = Query(default=None, alias="status"),
@@ -70,6 +91,10 @@ def update_post(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
     data = payload.model_dump(exclude_unset=True)
+    if post.post_type != "OFFER":
+        data.pop("event_title", None)
+        data.pop("event_start_date", None)
+        data.pop("event_end_date", None)
     for k, v in data.items():
         setattr(post, k, v)
     post.edited_by = user.id
@@ -93,6 +118,7 @@ def approve_post(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status != "pending":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post is not pending")
+    _validate_offer_fields(post)
     post.status = "queued"
     post.error_message = None
     db.add(post)
@@ -116,6 +142,7 @@ def retry_post(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status != "failed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post is not failed")
+    _validate_offer_fields(post)
     post.status = "queued"
     post.error_message = None
     db.add(post)

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 import httpx
+
+from app.scrapers.text_transform import sanitize_event_title
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,10 @@ def list_locations(*, access_token: str, account_id: str) -> list[GbpLocationInf
     return out
 
 
+def _date_to_gbp(d: date) -> dict[str, int]:
+    return {"year": d.year, "month": d.month, "day": d.day}
+
+
 def create_local_post(
     *,
     access_token: str,
@@ -110,6 +117,9 @@ def create_local_post(
     cta_url: str | None,
     topic_type: str,
     offer_redeem_online_url: str | None = None,
+    event_title: str | None = None,
+    event_start_date: date | None = None,
+    event_end_date: date | None = None,
 ) -> dict[str, Any]:
     url = f"{GBP_BASE_V4}/accounts/{account_id}/locations/{location_id}/localPosts"
     body: dict[str, Any] = {
@@ -121,8 +131,27 @@ def create_local_post(
         body["media"] = [{"mediaFormat": "PHOTO", "sourceUrl": image_url}]
     if cta_type and cta_url:
         body["callToAction"] = {"actionType": cta_type, "url": cta_url}
-    if topic_type == "OFFER" and offer_redeem_online_url:
-        body["offer"] = {"redeemOnlineUrl": offer_redeem_online_url}
+    if topic_type == "OFFER":
+        if event_title:
+            event_title = sanitize_event_title(event_title)
+        event_fields = (event_title, event_start_date, event_end_date)
+        if all(event_fields):
+            body["event"] = {
+                "title": event_title,
+                "schedule": {
+                    "startDate": _date_to_gbp(event_start_date),
+                    "endDate": _date_to_gbp(event_end_date),
+                },
+            }
+        elif any(event_fields):
+            raise ValueError(
+                f"OFFER post has incomplete event fields: "
+                f"title={event_title}, start={event_start_date}, end={event_end_date}"
+            )
+        else:
+            raise ValueError("OFFER post requires event_title, event_start_date, and event_end_date")
+        if offer_redeem_online_url:
+            body["offer"] = {"redeemOnlineUrl": offer_redeem_online_url}
 
     with httpx.Client(timeout=30) as client:
         r = client.post(url, headers=_auth_headers(access_token), json=body)

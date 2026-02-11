@@ -55,6 +55,8 @@ export default function PostDetailPage() {
     );
   }
 
+  const isOffer = post.post_type === "OFFER";
+
   const validateFields = () => {
     const errors: Record<string, string> = {};
     const summaryErr = validate(post.summary_final, maxLength(1500));
@@ -66,6 +68,15 @@ export default function PostDetailPage() {
     if (post.offer_redeem_online_url) {
       const offerErr = validate(post.offer_redeem_online_url, urlValidator());
       if (offerErr) errors.offer_url = offerErr;
+    }
+    if (isOffer) {
+      if (!post.event_title) errors.event_title = "特典タイトルは必須です";
+      else if (post.event_title.length > 58) errors.event_title = "特典タイトルは58文字以内で入力してください";
+      if (!post.event_start_date) errors.event_start_date = "開始日は必須です";
+      if (!post.event_end_date) errors.event_end_date = "終了日は必須です";
+      if (post.event_start_date && post.event_end_date && post.event_start_date > post.event_end_date) {
+        errors.event_end_date = "終了日は開始日以降にしてください";
+      }
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -84,6 +95,33 @@ export default function PostDetailPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const updateEventField = (field: "event_title" | "event_start_date" | "event_end_date", raw: string) => {
+    const value = raw || null;
+    const next = { ...post, [field]: value };
+    setPost(next);
+    setFieldErrors((prev) => {
+      const errs = { ...prev };
+      if (field === "event_title") {
+        if (!value) errs.event_title = "特典タイトルは必須です";
+        else if (value.length > 58) errs.event_title = "特典タイトルは58文字以内で入力してください";
+        else delete errs.event_title;
+      } else if (field === "event_start_date") {
+        if (!value) errs.event_start_date = "開始日は必須です";
+        else delete errs.event_start_date;
+        // YYYY-MM-DD 形式の文字列比較は日付順と一致する
+        const start = value;
+        const end = next.event_end_date;
+        if (start && end && start > end) errs.event_end_date = "終了日は開始日以降にしてください";
+        else if (end) delete errs.event_end_date;
+      } else {
+        if (!value) errs.event_end_date = "終了日は必須です";
+        else if (next.event_start_date && value < next.event_start_date) errs.event_end_date = "終了日は開始日以降にしてください";
+        else delete errs.event_end_date;
+      }
+      return errs;
+    });
   };
 
   const charCount = post.summary_final.length;
@@ -189,6 +227,38 @@ export default function PostDetailPage() {
           </FormField>
         </div>
 
+        {isOffer && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <FormField label="特典タイトル" error={fieldErrors.event_title}>
+              <input
+                className={inputClass}
+                maxLength={58}
+                value={post.event_title ?? ""}
+                onChange={(e) => updateEventField("event_title", e.target.value)}
+              />
+              <div className={`mt-1 text-xs ${(post.event_title?.length ?? 0) > 58 ? "text-red-600 font-medium" : "text-stone-400"}`}>
+                最大58文字 / 現在: {post.event_title?.length ?? 0}文字
+              </div>
+            </FormField>
+            <FormField label="開始日" error={fieldErrors.event_start_date}>
+              <input
+                type="date"
+                className={inputClass}
+                value={post.event_start_date ?? ""}
+                onChange={(e) => updateEventField("event_start_date", e.target.value)}
+              />
+            </FormField>
+            <FormField label="終了日" error={fieldErrors.event_end_date}>
+              <input
+                type="date"
+                className={inputClass}
+                value={post.event_end_date ?? ""}
+                onChange={(e) => updateEventField("event_end_date", e.target.value)}
+              />
+            </FormField>
+          </div>
+        )}
+
         <div className="mt-5 flex flex-wrap gap-2">
           <Button
             variant="secondary"
@@ -208,6 +278,11 @@ export default function PostDetailPage() {
                     cta_type: post.cta_type ?? null,
                     cta_url: post.cta_url ?? null,
                     offer_redeem_online_url: post.offer_redeem_online_url ?? null,
+                    ...(isOffer ? {
+                      event_title: post.event_title ?? null,
+                      event_start_date: post.event_start_date ?? null,
+                      event_end_date: post.event_end_date ?? null,
+                    } : {}),
                   }),
                 });
                 setPost(updated);

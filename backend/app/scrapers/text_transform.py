@@ -7,10 +7,12 @@ from bs4 import BeautifulSoup
 
 
 MAX_GBP_SUMMARY_LEN = 1500
+MAX_GBP_EVENT_TITLE_LEN = 58
 
 
 _re_ws = re.compile(r"[ \t]+")
 _re_nl = re.compile(r"\n{3,}")
+_re_all_ws = re.compile(r"\s+")
 _re_hashtag = re.compile(r"(?<!\w)#[^\s#]+")
 
 
@@ -19,6 +21,12 @@ def _normalize_text(s: str) -> str:
     s = _re_ws.sub(" ", s)
     s = _re_nl.sub("\n\n", s)
     return s.strip()
+
+
+def sanitize_event_title(title: str, *, max_length: int = MAX_GBP_EVENT_TITLE_LEN) -> str:
+    """Sanitize event title for GBP API: collapse whitespace, strip, truncate to max_length."""
+    s = _re_all_ws.sub(" ", title).strip()
+    return s[:max_length]
 
 
 def _truncate_with_footer(*, header: str, body: str, footer: str, limit: int = MAX_GBP_SUMMARY_LEN) -> str:

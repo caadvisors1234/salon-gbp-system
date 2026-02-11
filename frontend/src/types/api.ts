@@ -29,6 +29,9 @@ export interface PostDetail extends PostListItem {
   summary_generated: string;
   cta_type: string | null;
   offer_redeem_online_url: string | null;
+  event_title: string | null;
+  event_start_date: string | null;
+  event_end_date: string | null;
   gbp_post_id: string | null;
   edited_by: string | null;
   edited_at: string | null;

@@ -43,6 +43,9 @@ const post: PostDetail = {
   cta_type: null,
   cta_url: null,
   offer_redeem_online_url: null,
+  event_title: null,
+  event_start_date: null,
+  event_end_date: null,
   gbp_post_id: null,
   image_asset_id: null,
   error_message: null,
@@ -167,6 +170,91 @@ describe("PostDetailPage", () => {
     renderPage();
     await waitFor(() => {
       expect(screen.getByText("自動生成テキスト（原文）")).toBeInTheDocument();
+    });
+  });
+
+  describe("OFFER post type", () => {
+    const offerPost: PostDetail = {
+      ...post,
+      post_type: "OFFER",
+      event_title: "特典テスト",
+      event_start_date: "2026-02-01",
+      event_end_date: "2026-03-01",
+      offer_redeem_online_url: "https://example.com/coupon",
+    };
+
+    it("renders event fields for OFFER post", async () => {
+      mockApiFetch.mockResolvedValue(offerPost);
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("特典テスト")).toBeInTheDocument();
+      });
+      expect(screen.getByDisplayValue("2026-02-01")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("2026-03-01")).toBeInTheDocument();
+    });
+
+    it("shows validation error when event_title is empty on save", async () => {
+      const user = userEvent.setup();
+      mockApiFetch.mockResolvedValue({ ...offerPost, event_title: null });
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByText("保存")).toBeInTheDocument();
+      });
+      await user.click(screen.getByText("保存"));
+      await waitFor(() => {
+        expect(screen.getByText("特典タイトルは必須です")).toBeInTheDocument();
+      });
+    });
+
+    it("shows validation error when end date is before start date", async () => {
+      const user = userEvent.setup();
+      mockApiFetch.mockResolvedValue({
+        ...offerPost,
+        event_start_date: "2026-03-01",
+        event_end_date: "2026-02-01",
+      });
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByText("保存")).toBeInTheDocument();
+      });
+      await user.click(screen.getByText("保存"));
+      await waitFor(() => {
+        expect(screen.getByText("終了日は開始日以降にしてください")).toBeInTheDocument();
+      });
+    });
+
+    it("shows 58-char limit counter for event_title", async () => {
+      mockApiFetch.mockResolvedValue(offerPost);
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByText(/最大58文字/)).toBeInTheDocument();
+      });
+      expect(screen.getByText(/現在: 5文字/)).toBeInTheDocument();
+    });
+
+    it("shows validation error when event_title exceeds 58 chars", async () => {
+      const user = userEvent.setup();
+      const longTitle = "あ".repeat(59);
+      mockApiFetch.mockResolvedValue({ ...offerPost, event_title: longTitle });
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByText("保存")).toBeInTheDocument();
+      });
+      await user.click(screen.getByText("保存"));
+      await waitFor(() => {
+        expect(screen.getByText("特典タイトルは58文字以内で入力してください")).toBeInTheDocument();
+      });
+    });
+
+    it("does not render event fields for STANDARD post", async () => {
+      mockApiFetch.mockResolvedValue(post);
+      renderPage();
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("テスト投稿の本文です")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("特典タイトル")).not.toBeInTheDocument();
+      expect(screen.queryByText("開始日")).not.toBeInTheDocument();
+      expect(screen.queryByText("終了日")).not.toBeInTheDocument();
     });
   });
 });
