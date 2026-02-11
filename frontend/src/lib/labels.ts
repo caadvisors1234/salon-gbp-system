@@ -233,6 +233,11 @@ const PATTERN_ERROR_MAP: Array<[RegExp, string]> = [
   [/GBP API.*\b40[13]\b/i, "Googleアカウントの認証が期限切れです。GBP設定から再連携してください"],
   [/GBP API.*\b429\b/i, "Google APIのリクエスト制限に達しました。しばらくしてから再度お試しください"],
   [/GBP API.*\b5\d{2}\b/i, "Google APIでサーバーエラーが発生しました。しばらくしてから再度お試しください"],
+  [/GBP API.*\b400\b/i, "GBP投稿データに不正な値があります。内容を確認してください"],
+  [/GBP API.*\b404\b/i, "GBPロケーションが見つかりません。GBP設定を確認してください"],
+  [/GBP connection is expired/i, "Googleアカウントの接続が期限切れです。GBP設定から再連携してください"],
+  [/GBP connection is revoked/i, "Googleアカウントの接続が無効化されました。GBP設定から再連携してください"],
+  [/GBP connection is/i, "Googleアカウントの接続が無効です。GBP設定から再連携してください"],
   [/GBP API.*error/i, "Googleビジネスプロフィールとの通信でエラーが発生しました"],
   // GBP task alert messages: "GBP post failed: ...", "GBP media upload failed: ..."
   [/^GBP post failed/i, "GBP投稿に失敗しました"],

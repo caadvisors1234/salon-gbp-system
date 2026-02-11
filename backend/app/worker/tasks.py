@@ -84,6 +84,25 @@ def _resolve_public_url(asset: MediaAsset) -> str | None:
     return asset.public_url
 
 
+def _format_gbp_api_error(exc: httpx.HTTPStatusError, max_length: int = 500) -> str:
+    """GBP APIエラーのレスポンスボディを含むエラーメッセージを生成する。"""
+    status_code = exc.response.status_code
+    try:
+        body = exc.response.text[:max_length]
+    except Exception:
+        body = ""
+    if body:
+        return f"GBP API error: {status_code} - {body}"
+    return f"GBP API error: {status_code}"
+
+
+def _check_connection_active(conn: GbpConnection) -> str | None:
+    """接続が active でなければエラーメッセージを返す。active なら None。"""
+    if conn.status != "active":
+        return f"GBP connection is {conn.status}. Reconnect Google account."
+    return None
+
+
 def _start_job(db: Session, *, salon_id: uuid.UUID | None, job_type: str) -> JobLog:
     job = JobLog(
         salon_id=salon_id,
@@ -682,6 +701,25 @@ def post_gbp_post(self, gbp_post_id: str) -> None:
         loc = db.query(GbpLocation).filter(GbpLocation.id == post.gbp_location_id).one()
         conn = db.query(GbpConnection).filter(GbpConnection.id == loc.gbp_connection_id).one()
 
+        conn_err = _check_connection_active(conn)
+        if conn_err:
+            post.status = "failed"
+            post.error_message = conn_err
+            db.add(post)
+            db.commit()
+            logger.warning("post_gbp_post failed (connection %s) post_id=%s", conn.status, gbp_post_id)
+            create_alert(
+                db,
+                salon_id=post.salon_id,
+                severity="critical",
+                alert_type="oauth_expired",
+                message=conn_err,
+                entity_type="gbp_connection",
+                entity_id=conn.id,
+                deduplicate=True,
+            )
+            return
+
         image_url = None
         if post.image_asset_id:
             asset = db.query(MediaAsset).filter(MediaAsset.id == post.image_asset_id).one_or_none()
@@ -761,11 +799,12 @@ def post_gbp_post(self, gbp_post_id: str) -> None:
                     entity_type="gbp_connection",
                     entity_id=conn.id,
                 )
+            err_msg = _format_gbp_api_error(e)
             post.status = "failed"
-            post.error_message = f"GBP API error: {status_code}"
+            post.error_message = err_msg
             db.add(post)
             db.commit()
-            logger.error("post_gbp_post failed status=%d post_id=%s", status_code, gbp_post_id)
+            logger.error("post_gbp_post failed post_id=%s %s", gbp_post_id, err_msg)
         except Exception as e:  # noqa: BLE001
             post.status = "failed"
             post.error_message = str(e)[:2000]
@@ -804,6 +843,25 @@ def upload_gbp_media(self, upload_id: str) -> None:
 
         loc = db.query(GbpLocation).filter(GbpLocation.id == up.gbp_location_id).one()
         conn = db.query(GbpConnection).filter(GbpConnection.id == loc.gbp_connection_id).one()
+
+        conn_err = _check_connection_active(conn)
+        if conn_err:
+            up.status = "failed"
+            up.error_message = conn_err
+            db.add(up)
+            db.commit()
+            logger.warning("upload_gbp_media failed (connection %s) upload_id=%s", conn.status, upload_id)
+            create_alert(
+                db,
+                salon_id=up.salon_id,
+                severity="critical",
+                alert_type="oauth_expired",
+                message=conn_err,
+                entity_type="gbp_connection",
+                entity_id=conn.id,
+                deduplicate=True,
+            )
+            return
 
         asset = db.query(MediaAsset).filter(MediaAsset.id == up.media_asset_id).one_or_none()
         if not asset or asset.status != "available":
@@ -885,11 +943,12 @@ def upload_gbp_media(self, upload_id: str) -> None:
                     entity_type="gbp_connection",
                     entity_id=conn.id,
                 )
+            err_msg = _format_gbp_api_error(e)
             up.status = "failed"
-            up.error_message = f"GBP API error: {status_code}"
+            up.error_message = err_msg
             db.add(up)
             db.commit()
-            logger.error("upload_gbp_media failed status=%d upload_id=%s", status_code, upload_id)
+            logger.error("upload_gbp_media failed upload_id=%s %s", upload_id, err_msg)
         except Exception as e:  # noqa: BLE001
             up.status = "failed"
             up.error_message = str(e)[:2000]

@@ -17,7 +17,21 @@ def create_alert(
     message: str,
     entity_type: str | None = None,
     entity_id: uuid.UUID | None = None,
+    deduplicate: bool = False,
 ) -> Alert:
+    if deduplicate and entity_type and entity_id:
+        existing = (
+            db.query(Alert)
+            .filter(
+                Alert.alert_type == alert_type,
+                Alert.entity_type == entity_type,
+                Alert.entity_id == entity_id,
+                Alert.status == "open",
+            )
+            .first()
+        )
+        if existing:
+            return existing
     alert = Alert(
         salon_id=salon_id,
         severity=severity,

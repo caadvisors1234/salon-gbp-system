@@ -213,6 +213,51 @@ describe("translateError", () => {
     );
   });
 
+  it("translates 400 error with response body", () => {
+    expect(
+      translateError('GBP API error: 400 - {"error":{"message":"Invalid argument"}}'),
+    ).toBe("GBP投稿データに不正な値があります。内容を確認してください");
+  });
+
+  it("translates 404 error", () => {
+    expect(
+      translateError("GBP API error: 404 - Not Found"),
+    ).toBe("GBPロケーションが見つかりません。GBP設定を確認してください");
+  });
+
+  it("translates connection expired error", () => {
+    expect(
+      translateError("GBP connection is expired. Reconnect Google account."),
+    ).toBe("Googleアカウントの接続が期限切れです。GBP設定から再連携してください");
+  });
+
+  it("translates connection revoked error", () => {
+    expect(
+      translateError("GBP connection is revoked. Reconnect Google account."),
+    ).toBe("Googleアカウントの接続が無効化されました。GBP設定から再連携してください");
+  });
+
+  it("falls through to generic connection pattern for unknown status", () => {
+    expect(
+      translateError("GBP connection is disconnected. Reconnect Google account."),
+    ).toBe("Googleアカウントの接続が無効です。GBP設定から再連携してください");
+  });
+
+  it("still matches 401/403 with response body appended", () => {
+    expect(
+      translateError('GBP API error: 401 - {"error":"UNAUTHENTICATED"}'),
+    ).toBe("Googleアカウントの認証が期限切れです。GBP設定から再連携してください");
+    expect(
+      translateError('GBP API error: 403 - {"error":"PERMISSION_DENIED"}'),
+    ).toBe("Googleアカウントの認証が期限切れです。GBP設定から再連携してください");
+  });
+
+  it("falls through to catch-all for unhandled status codes", () => {
+    expect(translateError("GBP API error: 409 - Conflict")).toBe(
+      "Googleビジネスプロフィールとの通信でエラーが発生しました",
+    );
+  });
+
   it("does not false-match status codes embedded in longer numbers", () => {
     // \b boundaries should prevent "4011" from matching /\b40[13]\b/
     expect(translateError("GBP API error code 4011")).not.toBe(

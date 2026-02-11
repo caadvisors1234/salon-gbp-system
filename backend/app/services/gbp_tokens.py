@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_access_token(db: Session, conn: GbpConnection) -> str:
+    if conn.status != "active":
+        raise RuntimeError(f"GBP connection {conn.id} is {conn.status}, cannot obtain access token")
     settings = get_settings()
     now = datetime.now(tz=timezone.utc)
     if conn.token_expires_at <= (now + timedelta(minutes=5)):
