@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -27,12 +27,22 @@ def _get_connection(db: Session, salon_id: uuid.UUID) -> GbpConnection | None:
     return db.query(GbpConnection).filter(GbpConnection.salon_id == salon_id).one_or_none()
 
 
+def _list_locations(db: Session, salon_id: uuid.UUID) -> list[GbpLocation]:
+    return (
+        db.query(GbpLocation)
+        .filter(GbpLocation.salon_id == salon_id)
+        .order_by(GbpLocation.created_at.desc())
+        .all()
+    )
+
+
 @router.get("/connection", response_model=GbpConnectionResponse)
 def get_connection(
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> GbpConnectionResponse:
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     conn = _get_connection(db, salon_id)
     if conn is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="GBP connection not found")
@@ -43,14 +53,10 @@ def get_connection(
 def list_locations(
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[GbpLocationResponse]:
-    salon_id = require_salon(user)
-    locs = (
-        db.query(GbpLocation)
-        .filter(GbpLocation.salon_id == salon_id)
-        .order_by(GbpLocation.created_at.desc())
-        .all()
-    )
+    salon_id = require_salon(user, x_salon_id)
+    locs = _list_locations(db, salon_id)
     return [GbpLocationResponse.model_validate(l) for l in locs]
 
 
@@ -58,8 +64,9 @@ def list_locations(
 def list_available_locations(
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[GbpAvailableLocation]:
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     conn = _get_connection(db, salon_id)
     if conn is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="GBP is not connected")
@@ -91,59 +98,64 @@ def select_locations(
     payload: GbpLocationSelectRequest,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[GbpLocationResponse]:
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     conn = _get_connection(db, salon_id)
     if conn is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="GBP is not connected")
 
-    # Atomically deactivate all, then upsert selections in one transaction.
+    # Keep the endpoint idempotent while enforcing one active location per salon.
     db.query(GbpLocation).filter(GbpLocation.salon_id == salon_id).update({"is_active": False})
 
-    results: list[GbpLocation] = []
-    for item in payload.locations:
-        try:
-            with db.begin_nested():
-                loc = (
-                    db.query(GbpLocation)
-                    .filter(GbpLocation.salon_id == salon_id)
-                    .filter(GbpLocation.account_id == item.account_id)
-                    .filter(GbpLocation.location_id == item.location_id)
-                    .one_or_none()
-                )
-                if loc is None:
-                    loc = GbpLocation(
-                        salon_id=salon_id,
-                        gbp_connection_id=conn.id,
-                        account_id=item.account_id,
-                        location_id=item.location_id,
-                        location_name=item.location_name,
-                        is_active=item.is_active,
-                    )
-                else:
-                    loc.location_name = item.location_name
-                    loc.is_active = item.is_active
-                    loc.gbp_connection_id = conn.id
-                db.add(loc)
-            results.append(loc)
-        except IntegrityError:
-            continue
+    item = payload.location
+    if item is None:
+        db.commit()
+        return []
 
-    db.commit()
-    for loc in results:
-        db.refresh(loc)
+    try:
+        loc = (
+            db.query(GbpLocation)
+            .filter(GbpLocation.salon_id == salon_id)
+            .filter(GbpLocation.account_id == item.account_id)
+            .filter(GbpLocation.location_id == item.location_id)
+            .one_or_none()
+        )
+        if loc is None:
+            loc = GbpLocation(
+                salon_id=salon_id,
+                gbp_connection_id=conn.id,
+                account_id=item.account_id,
+                location_id=item.location_id,
+                location_name=item.location_name,
+                is_active=True,
+            )
+        else:
+            loc.location_name = item.location_name
+            loc.is_active = True
+            loc.gbp_connection_id = conn.id
+        db.add(loc)
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Could not set location. Please retry.",
+        ) from e
 
-    return [GbpLocationResponse.model_validate(l) for l in results]
+    db.refresh(loc)
+    return [GbpLocationResponse.model_validate(loc)]
 
 
-@router.patch("/locations/{location_db_id}", response_model=GbpLocationResponse)
+@router.patch("/locations/{location_db_id}", response_model=list[GbpLocationResponse])
 def patch_location(
     location_db_id: uuid.UUID,
     payload: GbpLocationPatchRequest,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
-) -> GbpLocationResponse:
-    salon_id = require_salon(user)
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
+) -> list[GbpLocationResponse]:
+    salon_id = require_salon(user, x_salon_id)
     loc = (
         db.query(GbpLocation)
         .filter(GbpLocation.id == location_db_id)
@@ -154,10 +166,20 @@ def patch_location(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
 
     data = payload.model_dump(exclude_unset=True)
+    if data.get("is_active") is True:
+        db.query(GbpLocation).filter(GbpLocation.salon_id == salon_id).filter(GbpLocation.id != loc.id).update(
+            {"is_active": False}
+        )
     for k, v in data.items():
         setattr(loc, k, v)
     db.add(loc)
-    db.commit()
-    db.refresh(loc)
-    return GbpLocationResponse.model_validate(loc)
-
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Could not update location. Please retry.",
+        ) from e
+    locs = _list_locations(db, salon_id)
+    return [GbpLocationResponse.model_validate(x) for x in locs]

@@ -16,7 +16,7 @@ export function useGbpSettings(oauthParam: string | null) {
   const [connErr, setConnErr] = useState<string | null>(null);
   const [locations, setLocations] = useState<GbpLocationResponse[]>([]);
   const [available, setAvailable] = useState<GbpAvailableLocation[]>([]);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -47,9 +47,8 @@ export function useGbpSettings(oauthParam: string | null) {
   }, [token, oauthParam]);
 
   useEffect(() => {
-    const s: Record<string, boolean> = {};
-    for (const l of locations) s[keyOf(l)] = l.is_active;
-    setSelected(s);
+    const active = locations.find((l) => l.is_active);
+    setSelected(active ? keyOf(active) : null);
   }, [locations]);
 
   const startOAuth = useCallback(async () => {
@@ -100,17 +99,19 @@ export function useGbpSettings(oauthParam: string | null) {
     setBusy(true);
     setErr(null);
     try {
-      const chosen = available.filter((a) => selected[keyOf(a)]);
+      const chosen = available.find((a) => keyOf(a) === selected) ?? null;
       const saved = await apiFetch<GbpLocationResponse[]>("/gbp/locations/select", {
         method: "POST",
         token,
         body: JSON.stringify({
-          locations: chosen.map((c) => ({
-            account_id: c.account_id,
-            location_id: c.location_id,
-            location_name: c.location_name ?? null,
-            is_active: true,
-          })),
+          location: chosen
+            ? {
+                account_id: chosen.account_id,
+                location_id: chosen.location_id,
+                location_name: chosen.location_name ?? null,
+                is_active: true,
+              }
+            : null,
         }),
       });
       setLocations(saved);
@@ -129,12 +130,12 @@ export function useGbpSettings(oauthParam: string | null) {
       try {
         const loc = locations.find((l) => l.id === id);
         if (!loc) return;
-        const updated = await apiFetch<GbpLocationResponse>(`/gbp/locations/${id}`, {
+        const updated = await apiFetch<GbpLocationResponse[]>(`/gbp/locations/${id}`, {
           method: "PATCH",
           token,
           body: JSON.stringify({ is_active: !loc.is_active }),
         });
-        setLocations((prev) => prev.map((x) => (x.id === id ? updated : x)));
+        setLocations(updated);
       } catch (e: unknown) {
         setErr(translateError(e instanceof Error ? e.message : String(e)));
       } finally {

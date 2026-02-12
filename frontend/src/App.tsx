@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { ToastProvider, useToast } from "./lib/toast";
-import { apiFetch } from "./lib/api";
+import { apiFetch, getCurrentSalonId, setCurrentSalonId } from "./lib/api";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IconMenu, IconSpinner } from "./components/icons";
@@ -43,20 +43,33 @@ function Shell() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [currentSalonId, setCurrentSalonIdState] = useState<string | null>(() => getCurrentSalonId());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const token = session?.access_token;
 
   useEffect(() => {
     if (!token) {
       setMe(null);
+      setCurrentSalonId(null);
+      setCurrentSalonIdState(null);
       return;
     }
     const ac = new AbortController();
     apiFetch<MeResponse>("/me", { token, signal: ac.signal })
-      .then(setMe)
+      .then((meResp) => {
+        setMe(meResp);
+        const availableSalonIds = new Set(meResp.salon_ids);
+        const storedSalonId = getCurrentSalonId();
+        const nextSalonId = [storedSalonId, ...meResp.salon_ids].find(
+          (id): id is string => !!id && availableSalonIds.has(id),
+        ) ?? null;
+        setCurrentSalonId(nextSalonId);
+        setCurrentSalonIdState(nextSalonId);
+      })
       .catch((e) => {
         if (e.name === "AbortError") return;
         setMe(null);
+        setCurrentSalonIdState(getCurrentSalonId());
       });
     return () => ac.abort();
   }, [token]);
@@ -116,6 +129,12 @@ function Shell() {
       <Sidebar
         email={me?.email ?? session?.user.email ?? ""}
         role={me?.role ?? ""}
+        salons={me?.salons ?? []}
+        currentSalonId={currentSalonId}
+        onSalonChange={(salonId) => {
+          setCurrentSalonId(salonId);
+          setCurrentSalonIdState(salonId);
+        }}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onSignOut={async () => {
@@ -141,8 +160,8 @@ function Shell() {
 
       {/* Main content */}
       <main id="main-content" className="md:ml-64">
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
-          <ErrorBoundary resetKeys={[location.pathname]}>
+        <div key={currentSalonId ?? "no-salon"} className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
+          <ErrorBoundary resetKeys={[location.pathname, currentSalonId ?? ""]}>
             <Suspense fallback={
               <div className="flex items-center justify-center py-12">
                 <IconSpinner className="h-6 w-6 text-pink-500" />

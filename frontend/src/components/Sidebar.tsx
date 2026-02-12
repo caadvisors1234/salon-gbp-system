@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
+import type { MeSalonMembership } from "../types/api";
 import {
   IconDashboard,
   IconPosts,
@@ -76,12 +77,18 @@ const sections: NavSection[] = [
 export default function Sidebar({
   email,
   role,
+  salons,
+  currentSalonId,
+  onSalonChange,
   open,
   onClose,
   onSignOut,
 }: {
   email: string;
   role: string;
+  salons: MeSalonMembership[];
+  currentSalonId: string | null;
+  onSalonChange: (salonId: string | null) => void;
   open: boolean;
   onClose: () => void;
   onSignOut: () => void;
@@ -90,6 +97,7 @@ export default function Sidebar({
   const isSuperAdmin = role === "super_admin";
   const isAdmin = role === "super_admin" || role === "salon_admin";
   const sidebarRef = useRef<HTMLElement>(null);
+  const selectedSalonId = currentSalonId ?? salons[0]?.id ?? "";
 
   const isActive = (to: string) => {
     if (to === "/dashboard") return location.pathname === "/dashboard" || location.pathname === "/";
@@ -123,6 +131,26 @@ export default function Sidebar({
           <IconX className="h-5 w-5 text-stone-500" />
         </button>
       </div>
+
+      {salons.length > 0 && (
+        <div className="border-b border-stone-100 px-4 py-3">
+          <label htmlFor="salon-switcher" className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-stone-400">
+            操作サロン
+          </label>
+          <select
+            id="salon-switcher"
+            className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-700 focus:border-pink-300 focus:outline-none focus:ring-1 focus:ring-pink-300"
+            value={selectedSalonId}
+            onChange={(e) => onSalonChange(e.target.value || null)}
+          >
+            {salons.map((salon) => (
+              <option key={salon.id} value={salon.id}>
+                {salon.name} ({salon.slug})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
         {sections.map((section) => {

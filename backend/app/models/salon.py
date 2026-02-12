@@ -22,9 +22,10 @@ class Salon(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
-    # Users are not owned by a salon (salon_id is nullable and uses ON DELETE SET NULL),
-    # so avoid ORM cascades that could delete AppUser rows.
-    users: Mapped[list["AppUser"]] = relationship(back_populates="salon")
+    user_memberships: Mapped[list["UserSalon"]] = relationship(
+        back_populates="salon",
+        cascade="all,delete-orphan",
+    )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.user import AppUser
+    from app.models.user_salon import UserSalon

@@ -141,10 +141,11 @@ export default function GbpSettingsPage() {
                     <tr key={k} className="hover:bg-stone-50/50">
                       <td className="px-4 py-3">
                         <input
-                          type="checkbox"
+                          type="radio"
+                          name="gbp-available-location"
                           className="h-4 w-4 rounded border-stone-300 text-pink-600"
-                          checked={!!selected[k]}
-                          onChange={(e) => setSelected((prev) => ({ ...prev, [k]: e.target.checked }))}
+                          checked={selected === k}
+                          onChange={() => setSelected(k)}
                         />
                       </td>
                       <td className="px-4 py-3 text-stone-600">{a.account_id}</td>

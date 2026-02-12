@@ -2,6 +2,9 @@
 
 ベースパス: `/api`
 
+## サロン文脈
+- サロンスコープAPIは `X-Salon-Id: <salon_uuid>` ヘッダで操作対象サロンを指定（必須）
+
 ## Health
 - `GET /health`
 
@@ -58,3 +61,10 @@
 - `POST /admin/salons`
 - `GET /admin/users`
 - `POST /admin/users/invite`
+- `PUT /admin/users/{user_id}/salons`
+
+## 主要変更メモ
+- `POST /gbp/locations/select` は単一選択: `{ "location": { ... } }`（解除時は `{ "location": null }`）
+- `PATCH /gbp/locations/{location_db_id}` は更新後のロケーション一覧を返す（`is_active=true` 時の他行更新を反映）
+- `POST /admin/users/invite` は複数所属指定に対応: `salon_ids: string[]`
+- `/me` と `/admin/users` のユーザー情報は `salon_ids` を返す（`salon_id` は廃止）

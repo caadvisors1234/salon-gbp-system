@@ -49,15 +49,43 @@ class AdminUserInviteRequest(BaseModel):
     email: EmailStr
     password: str | None = Field(default=None, min_length=8, max_length=128, repr=False)
     role: Literal["staff", "salon_admin", "super_admin"] = "staff"
-    salon_id: uuid.UUID | None = None
+    salon_ids: list[uuid.UUID] = Field(default_factory=list)
     display_name: str | None = Field(default=None, max_length=100)
+
+    @model_validator(mode="after")
+    def normalize_salons(self) -> AdminUserInviteRequest:
+        uniq: list[uuid.UUID] = []
+        seen: set[uuid.UUID] = set()
+        for sid in self.salon_ids:
+            if sid in seen:
+                continue
+            seen.add(sid)
+            uniq.append(sid)
+        self.salon_ids = uniq
+        return self
+
+
+class AdminUserSalonsUpdateRequest(BaseModel):
+    salon_ids: list[uuid.UUID] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def dedupe_salons(self) -> AdminUserSalonsUpdateRequest:
+        uniq: list[uuid.UUID] = []
+        seen: set[uuid.UUID] = set()
+        for sid in self.salon_ids:
+            if sid in seen:
+                continue
+            seen.add(sid)
+            uniq.append(sid)
+        self.salon_ids = uniq
+        return self
 
 
 class AppUserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    salon_id: uuid.UUID | None
+    salon_ids: list[uuid.UUID] = Field(default_factory=list)
     supabase_user_id: uuid.UUID
     email: str
     display_name: str | None

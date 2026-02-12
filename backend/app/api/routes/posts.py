@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, db_session, get_current_user, require_salon
@@ -45,13 +45,14 @@ def list_posts(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[PostListItem]:
     q = db.query(GbpPost)
     if user.is_super_admin():
         if salon_id:
             q = q.filter(GbpPost.salon_id == salon_id)
     else:
-        q = q.filter(GbpPost.salon_id == require_salon(user))
+        q = q.filter(GbpPost.salon_id == require_salon(user, x_salon_id))
 
     if status_filter:
         q = q.filter(GbpPost.status == status_filter)
@@ -68,11 +69,12 @@ def get_post(
     post_id: uuid.UUID,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> PostDetail:
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user):
+    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     return PostDetail.model_validate(post)
 
@@ -83,11 +85,12 @@ def update_post(
     payload: PostUpdateRequest,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> PostDetail:
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user):
+    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
     data = payload.model_dump(exclude_unset=True)
@@ -110,11 +113,12 @@ def approve_post(
     post_id: uuid.UUID,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> PostDetail:
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user):
+    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status != "pending":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post is not pending")
@@ -134,11 +138,12 @@ def retry_post(
     post_id: uuid.UUID,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> PostDetail:
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user):
+    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status != "failed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post is not failed")
@@ -158,11 +163,12 @@ def skip_post(
     post_id: uuid.UUID,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> PostDetail:
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user):
+    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status in ("posted",):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post already posted")
@@ -171,4 +177,3 @@ def skip_post(
     db.commit()
     db.refresh(post)
     return PostDetail.model_validate(post)
-

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { translateError } from "../lib/labels";
 
+const SALON_CHANGED_EVENT = "salon:changed";
+
 /**
  * Generic data-fetching hook that handles auth token injection, AbortController,
  * loading/error state, and automatic refetching on dependency changes.
@@ -66,6 +68,12 @@ export function useApiFetch<T>(
     return abortActive;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, ...deps]);
+
+  useEffect(() => {
+    const onSalonChanged = () => execute();
+    window.addEventListener(SALON_CHANGED_EVENT, onSalonChanged);
+    return () => window.removeEventListener(SALON_CHANGED_EVENT, onSalonChanged);
+  }, [execute]);
 
   const refetch = useCallback(() => {
     execute();

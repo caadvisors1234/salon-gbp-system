@@ -11,7 +11,7 @@ import Badge from "../components/Badge";
 import Button from "../components/Button";
 import FormField, { inputClass, selectClass } from "../components/FormField";
 import Alert from "../components/Alert";
-import { IconRefresh, IconTrash } from "../components/icons";
+import { IconEdit, IconRefresh, IconTrash } from "../components/icons";
 import { roleLabel, translateError } from "../lib/labels";
 import type { MeResponse, SalonResponse, AppUserResponse } from "../types/api";
 
@@ -41,12 +41,17 @@ export default function AdminUsersPage() {
   const [inviteForm, setInviteForm] = useState({
     email: "",
     password: "",
-    salon_id: "",
+    salon_ids: [] as string[],
     role: "staff",
     display_name: "",
   });
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [assignForm, setAssignForm] = useState({
+    user_id: "",
+    salon_ids: [] as string[],
+  });
+  const [assignLoading, setAssignLoading] = useState(false);
 
   if (me && me.role !== "super_admin") {
     return <div className="py-12 text-center text-stone-500">アクセス権限がありません</div>;
@@ -63,6 +68,8 @@ export default function AdminUsersPage() {
     setInviteErrors(errors);
     return Object.keys(errors).length === 0;
   };
+
+  const salonLabelById = Object.fromEntries(salons.map((s) => [s.id, `${s.name} (${s.slug})`]));
 
   const columns: Column<AppUserResponse>[] = [
     {
@@ -82,7 +89,11 @@ export default function AdminUsersPage() {
     {
       key: "salon",
       header: "サロン",
-      render: (u) => <span className="text-xs text-stone-500">{u.salon_id ?? "—"}</span>,
+      render: (u) => (
+        <span className="text-xs text-stone-500">
+          {u.salon_ids.length > 0 ? u.salon_ids.map((id) => salonLabelById[id] ?? id).join(", ") : "—"}
+        </span>
+      ),
     },
     {
       key: "active",
@@ -98,32 +109,50 @@ export default function AdminUsersPage() {
       key: "actions",
       header: "操作",
       render: (u) => {
-        if (me && u.supabase_user_id === me.supabase_user_id) return null;
+        const isSelf = !!me && u.supabase_user_id === me.supabase_user_id;
         return (
-          <Button
-            variant="ghost"
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1"
-            aria-label="ユーザーを削除"
-            loading={deletingId === u.supabase_user_id}
-            disabled={deletingId !== null}
-            onClick={async () => {
-              if (!token) return;
-              if (!confirm(`${u.email} を削除しますか？`)) return;
-              setDeletingId(u.supabase_user_id);
-              setErr(null);
-              try {
-                await apiFetch(`/admin/users/${u.supabase_user_id}`, { method: "DELETE", token });
-                toast("success", "ユーザーを削除しました");
-                refetch();
-              } catch (ex: unknown) {
-                setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
-              } finally {
-                setDeletingId(null);
-              }
-            }}
-          >
-            <IconTrash className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              className="px-2 py-1"
+              aria-label="所属サロンを編集"
+              onClick={() => {
+                setAssignForm({
+                  user_id: u.supabase_user_id,
+                  salon_ids: [...u.salon_ids],
+                });
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            >
+              <IconEdit className="h-4 w-4" />
+            </Button>
+            {!isSelf && (
+              <Button
+                variant="ghost"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1"
+                aria-label="ユーザーを削除"
+                loading={deletingId === u.supabase_user_id}
+                disabled={deletingId !== null}
+                onClick={async () => {
+                  if (!token) return;
+                  if (!confirm(`${u.email} を削除しますか？`)) return;
+                  setDeletingId(u.supabase_user_id);
+                  setErr(null);
+                  try {
+                    await apiFetch(`/admin/users/${u.supabase_user_id}`, { method: "DELETE", token });
+                    toast("success", "ユーザーを削除しました");
+                    refetch();
+                  } catch (ex: unknown) {
+                    setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
+                  } finally {
+                    setDeletingId(null);
+                  }
+                }}
+              >
+                <IconTrash className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         );
       },
     },
@@ -151,12 +180,12 @@ export default function AdminUsersPage() {
                 body: JSON.stringify({
                   email: inviteForm.email,
                   password: inviteForm.password || null,
-                  salon_id: inviteForm.salon_id || null,
+                  salon_ids: inviteForm.salon_ids,
                   role: inviteForm.role,
                   display_name: inviteForm.display_name || null,
                 }),
               });
-              setInviteForm({ email: "", password: "", salon_id: "", role: "staff", display_name: "" });
+              setInviteForm({ email: "", password: "", salon_ids: [], role: "staff", display_name: "" });
               setInviteErrors({});
               toast("success", "ユーザーを招待しました");
               refetch();
@@ -173,11 +202,21 @@ export default function AdminUsersPage() {
           <FormField label="パスワード（任意・8文字以上）" className="sm:col-span-2" error={inviteErrors.password}>
             <input type="password" className={inputClass} value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })} />
           </FormField>
-          <FormField label="サロン">
-            <select className={selectClass} value={inviteForm.salon_id} onChange={(e) => setInviteForm({ ...inviteForm, salon_id: e.target.value })}>
-              <option value="">（なし）</option>
+          <FormField label="サロン（複数選択可）">
+            <select
+              className={selectClass}
+              multiple
+              size={Math.min(6, Math.max(salons.length, 3))}
+              value={inviteForm.salon_ids}
+              onChange={(e) =>
+                setInviteForm({
+                  ...inviteForm,
+                  salon_ids: Array.from(e.target.selectedOptions).map((o) => o.value),
+                })
+              }
+            >
               {salons.map((s) => (
-                <option key={s.id} value={s.id}>{s.slug}</option>
+                <option key={s.id} value={s.id}>{s.name} ({s.slug})</option>
               ))}
             </select>
           </FormField>
@@ -194,6 +233,82 @@ export default function AdminUsersPage() {
           <div className="sm:col-span-2">
             <Button variant="primary" type="submit" disabled={inviteLoading}>
               {inviteLoading ? "招待中..." : "招待"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card title="所属サロン更新" description="既存ユーザーの所属サロンを変更">
+        <form
+          className="grid gap-4 sm:grid-cols-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!token || !assignForm.user_id) return;
+            setErr(null);
+            setAssignLoading(true);
+            try {
+              await apiFetch(`/admin/users/${assignForm.user_id}/salons`, {
+                method: "PUT",
+                token,
+                body: JSON.stringify({
+                  salon_ids: assignForm.salon_ids,
+                }),
+              });
+              toast("success", "所属サロンを更新しました");
+              refetch();
+            } catch (e2: unknown) {
+              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
+            } finally {
+              setAssignLoading(false);
+            }
+          }}
+        >
+          <FormField label="対象ユーザー" className="sm:col-span-2">
+            <select
+              className={selectClass}
+              value={assignForm.user_id}
+              onChange={(e) => {
+                const userId = e.target.value;
+                const target = users.find((u) => u.supabase_user_id === userId);
+                setAssignForm({
+                  user_id: userId,
+                  salon_ids: target ? [...target.salon_ids] : [],
+                });
+              }}
+            >
+              <option value="">ユーザーを選択</option>
+              {users.map((u) => (
+                <option key={u.supabase_user_id} value={u.supabase_user_id}>
+                  {u.email}（{roleLabel(u.role)}）
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="サロン（複数選択可）" className="sm:col-span-2">
+            <select
+              className={selectClass}
+              multiple
+              size={Math.min(6, Math.max(salons.length, 3))}
+              disabled={!assignForm.user_id}
+              value={assignForm.salon_ids}
+              onChange={(e) =>
+                setAssignForm({
+                  ...assignForm,
+                  salon_ids: Array.from(e.target.selectedOptions).map((o) => o.value),
+                })
+              }
+            >
+              {salons.map((s) => (
+                <option key={s.id} value={s.id}>{s.name} ({s.slug})</option>
+              ))}
+            </select>
+          </FormField>
+          <div className="sm:col-span-2 text-xs text-stone-500">
+            選択中: {assignForm.salon_ids.length}件
+          </div>
+          <div className="sm:col-span-2">
+            <Button variant="primary" type="submit" disabled={assignLoading || !assignForm.user_id}>
+              {assignLoading ? "更新中..." : "所属サロンを更新"}
             </Button>
           </div>
         </form>

@@ -148,4 +148,65 @@ describe("GbpSettingsPage", () => {
       );
     });
   });
+
+  it("updates all locations after activation toggle", async () => {
+    const user = userEvent.setup();
+    const locationsForToggle: GbpLocationResponse[] = [
+      {
+        id: "loc-1",
+        salon_id: "s1",
+        gbp_connection_id: "c1",
+        account_id: "acc-1",
+        location_id: "locations/123",
+        location_name: "渋谷店",
+        is_active: true,
+      },
+      {
+        id: "loc-2",
+        salon_id: "s1",
+        gbp_connection_id: "c1",
+        account_id: "acc-1",
+        location_id: "locations/456",
+        location_name: "新宿店",
+        is_active: false,
+      },
+    ];
+    mockApiFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (url.includes("/gbp/connection")) return Promise.resolve(conn);
+      if (url.includes("/gbp/locations/loc-2") && opts?.method === "PATCH") {
+        return Promise.resolve([
+          { ...locationsForToggle[0], is_active: false },
+          { ...locationsForToggle[1], is_active: true },
+        ]);
+      }
+      if (url.includes("/gbp/locations")) return Promise.resolve(locationsForToggle);
+      return Promise.resolve(null);
+    });
+
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("新宿店")).toBeInTheDocument();
+    });
+
+    const savedLocationChecks = screen.getAllByRole("checkbox");
+    expect(savedLocationChecks[0]).toBeChecked();
+    expect(savedLocationChecks[1]).not.toBeChecked();
+
+    await user.click(savedLocationChecks[1]);
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/gbp/locations/loc-2",
+        expect.objectContaining({
+          method: "PATCH",
+          token: "test-token",
+          body: JSON.stringify({ is_active: true }),
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(savedLocationChecks[0]).not.toBeChecked();
+      expect(savedLocationChecks[1]).toBeChecked();
+    });
+  });
 });

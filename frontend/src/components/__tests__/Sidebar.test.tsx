@@ -9,6 +9,9 @@ function renderSidebar(props: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   const defaults = {
     email: "test@example.com",
     role: "salon_admin",
+    salons: [{ id: "s1", slug: "s1", name: "Salon 1", is_active: true }],
+    currentSalonId: "s1",
+    onSalonChange: vi.fn(),
     open: false,
     onClose: vi.fn(),
     onSignOut: vi.fn(),

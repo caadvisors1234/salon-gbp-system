@@ -13,7 +13,7 @@ def test_invite_valid_minimal():
     assert req.email == "user@example.com"
     assert req.password is None
     assert req.role == "staff"
-    assert req.salon_id is None
+    assert req.salon_ids == []
     assert req.display_name is None
 
 
@@ -23,12 +23,23 @@ def test_invite_valid_full():
         email="admin@salon.jp",
         password="securepass123",
         role="salon_admin",
-        salon_id=sid,
+        salon_ids=[sid],
         display_name="テスト太郎",
     )
     assert req.role == "salon_admin"
-    assert req.salon_id == sid
+    assert req.salon_ids == [sid]
     assert req.display_name == "テスト太郎"
+
+
+def test_invite_valid_multiple_salons():
+    sid1 = uuid.uuid4()
+    sid2 = uuid.uuid4()
+    req = AdminUserInviteRequest(
+        email="multi@salon.jp",
+        role="staff",
+        salon_ids=[sid1, sid2, sid1],
+    )
+    assert req.salon_ids == [sid1, sid2]
 
 
 def test_invite_invalid_email():

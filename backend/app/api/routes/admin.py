@@ -15,8 +15,9 @@ from app.models.gbp_location import GbpLocation
 from app.models.job_log import JobLog
 from app.models.salon import Salon
 from app.models.user import AppUser
+from app.models.user_salon import UserSalon
 from app.core.config import get_settings
-from app.schemas.admin import AdminSalonCreate, AdminUserInviteRequest, AppUserResponse
+from app.schemas.admin import AdminSalonCreate, AdminUserInviteRequest, AdminUserSalonsUpdateRequest, AppUserResponse
 from app.services import supabase_admin
 from app.schemas.job_logs import JobLogResponse
 from app.schemas.monitor import SalonMonitorItem
@@ -25,6 +26,44 @@ from app.schemas.salon import SalonResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _validate_salons_exist(db: Session, salon_ids: list[uuid.UUID]) -> None:
+    if not salon_ids:
+        return
+    existing = {sid for sid, in db.query(Salon.id).filter(Salon.id.in_(salon_ids)).all()}
+    missing = [sid for sid in salon_ids if sid not in existing]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid salon_id(s): {', '.join(str(x) for x in missing)}",
+        )
+
+
+def _replace_user_salons(db: Session, user: AppUser, salon_ids: list[uuid.UUID]) -> None:
+    db.query(UserSalon).filter(UserSalon.user_id == user.id).delete(synchronize_session=False)
+    for sid in salon_ids:
+        db.add(UserSalon(user_id=user.id, salon_id=sid))
+
+
+def _list_user_salons(db: Session) -> dict[uuid.UUID, list[uuid.UUID]]:
+    out: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for user_id, salon_id in db.query(UserSalon.user_id, UserSalon.salon_id).all():
+        out.setdefault(user_id, []).append(salon_id)
+    return out
+
+
+def _to_user_response(user: AppUser, salons_map: dict[uuid.UUID, list[uuid.UUID]]) -> AppUserResponse:
+    salon_ids = salons_map.get(user.id, [])
+    return AppUserResponse(
+        id=user.id,
+        salon_ids=salon_ids,
+        supabase_user_id=user.supabase_user_id,
+        email=user.email,
+        display_name=user.display_name,
+        role=user.role,
+        is_active=user.is_active,
+    )
 
 
 @router.get("/salons", response_model=list[SalonResponse])
@@ -77,7 +116,8 @@ def list_users(
     _: CurrentUser = Depends(require_roles("super_admin")),
 ) -> list[AppUserResponse]:
     users = db.query(AppUser).order_by(AppUser.created_at.desc()).all()
-    return [AppUserResponse.model_validate(u) for u in users]
+    salons_map = _list_user_salons(db)
+    return [_to_user_response(u, salons_map) for u in users]
 
 
 @router.post("/users/invite", response_model=AppUserResponse, status_code=status.HTTP_201_CREATED)
@@ -96,6 +136,9 @@ def invite_user(
     existing = db.query(AppUser).filter(AppUser.email == str(payload.email)).one_or_none()
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists in app_users")
+
+    salon_ids = payload.salon_ids
+    _validate_salons_exist(db, salon_ids)
 
     # Create user in Supabase (or get existing)
     try:
@@ -126,12 +169,13 @@ def invite_user(
     user = AppUser(
         supabase_user_id=sb_user.id,
         email=sb_user.email,
-        salon_id=payload.salon_id,
         role=payload.role,
         display_name=payload.display_name,
     )
     db.add(user)
     try:
+        db.flush()
+        _replace_user_salons(db, user, salon_ids)
         db.commit()
     except IntegrityError as e:
         db.rollback()
@@ -140,7 +184,30 @@ def invite_user(
             detail="User already exists (duplicate supabase_user_id or email)",
         ) from e
     db.refresh(user)
-    return AppUserResponse.model_validate(user)
+    return _to_user_response(user, {user.id: salon_ids})
+
+
+@router.put("/users/{user_id}/salons", response_model=AppUserResponse)
+def update_user_salons(
+    user_id: str,
+    payload: AdminUserSalonsUpdateRequest,
+    db: Session = Depends(db_session),
+    _: CurrentUser = Depends(require_roles("super_admin")),
+) -> AppUserResponse:
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID")
+
+    user = db.query(AppUser).filter(AppUser.supabase_user_id == uid).one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    _validate_salons_exist(db, payload.salon_ids)
+    _replace_user_salons(db, user, payload.salon_ids)
+    db.commit()
+    db.refresh(user)
+    return _to_user_response(user, {user.id: payload.salon_ids})
 
 
 @router.delete("/users/{user_id}")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, db_session, require_roles, require_salon
@@ -24,8 +24,9 @@ router = APIRouter()
 def list_accounts(
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[InstagramAccountResponse]:
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     accounts = (
         db.query(InstagramAccount)
         .filter(InstagramAccount.salon_id == salon_id)
@@ -40,9 +41,10 @@ def create_account(
     payload: InstagramAccountCreateRequest,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> InstagramAccountResponse:
     settings = get_settings()
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     expires_at = datetime.now(tz=timezone.utc) + timedelta(days=payload.expires_in_days)
     acc = InstagramAccount(
         salon_id=salon_id,
@@ -67,8 +69,9 @@ def patch_account(
     payload: InstagramAccountPatchRequest,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> InstagramAccountResponse:
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     acc = (
         db.query(InstagramAccount)
         .filter(InstagramAccount.id == account_id)
@@ -91,8 +94,9 @@ def delete_account(
     account_id: uuid.UUID,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ):
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     acc = (
         db.query(InstagramAccount)
         .filter(InstagramAccount.id == account_id)
@@ -104,4 +108,3 @@ def delete_account(
     db.delete(acc)
     db.commit()
     return None
-

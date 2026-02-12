@@ -36,7 +36,8 @@ const me: MeResponse = {
   supabase_user_id: "su1",
   email: "admin@salon.jp",
   role: "salon_admin",
-  salon_id: "s1",
+  salon_ids: ["s1"],
+  salons: [{ id: "s1", slug: "s1", name: "Salon 1", is_active: true }],
 };
 
 const alerts: AlertResponse[] = [

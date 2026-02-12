@@ -1,12 +1,20 @@
 // Centralized API response types — mirrors backend Pydantic schemas.
 
 // --- Auth / User ---
+export interface MeSalonMembership {
+  id: string;
+  slug: string;
+  name: string;
+  is_active: boolean;
+}
+
 export interface MeResponse {
   id: string;
   supabase_user_id: string;
   email: string;
   role: string;
-  salon_id: string | null;
+  salon_ids: string[];
+  salons: MeSalonMembership[];
 }
 
 // --- Posts ---
@@ -122,7 +130,7 @@ export interface InstagramAccountResponse {
 // --- Admin ---
 export interface AppUserResponse {
   id: string;
-  salon_id: string | null;
+  salon_ids: string[];
   supabase_user_id: string;
   email: string;
   display_name: string | null;

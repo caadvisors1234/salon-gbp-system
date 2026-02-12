@@ -44,10 +44,9 @@ class GbpLocationSelectItem(BaseModel):
 
 
 class GbpLocationSelectRequest(BaseModel):
-    locations: list[GbpLocationSelectItem]
+    location: GbpLocationSelectItem | None = None
 
 
 class GbpLocationPatchRequest(BaseModel):
     location_name: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
-

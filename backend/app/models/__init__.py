@@ -10,6 +10,7 @@ from app.models.salon import Salon
 from app.models.scrape_seed import ScrapeSeeded
 from app.models.source_content import SourceContent
 from app.models.user import AppUser
+from app.models.user_salon import UserSalon
 
 __all__ = [
     "Alert",
@@ -24,5 +25,5 @@ __all__ = [
     "Salon",
     "ScrapeSeeded",
     "SourceContent",
+    "UserSalon",
 ]
-

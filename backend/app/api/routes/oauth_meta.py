@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -30,10 +30,11 @@ def meta_oauth_start(
     staff_name: str | None = Query(default=None),
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ):
     _ = db
     settings = get_settings()
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     if account_type not in ("official", "staff"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid account_type")
     state = create_state(

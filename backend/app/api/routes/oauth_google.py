@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -23,10 +23,11 @@ def google_oauth_start(
     request: Request,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("salon_admin")),
+    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ):
     _ = db  # reserved for future one-time-state storage
     settings = get_settings()
-    salon_id = require_salon(user)
+    salon_id = require_salon(user, x_salon_id)
     state = create_state(
         {"salon_id": str(salon_id), "user_id": str(user.id), "nonce": uuid.uuid4().hex},
         settings.oauth_state_secret,

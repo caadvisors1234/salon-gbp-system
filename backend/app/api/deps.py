@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.supabase_jwt import SupabaseAuthError, verify_jwt
-from app.db.session import SessionLocal
 from app.models.user import AppUser
+from app.models.user_salon import UserSalon
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,8 @@ security = HTTPBearer(auto_error=False)
 
 
 def db_session() -> Session:
+    from app.db.session import SessionLocal
+
     db = SessionLocal()
     try:
         yield db
@@ -33,18 +35,18 @@ class CurrentUser:
     supabase_user_id: uuid.UUID
     email: str
     role: str
-    salon_id: uuid.UUID | None
+    salon_ids: tuple[uuid.UUID, ...]
 
     def is_super_admin(self) -> bool:
         return self.role == "super_admin"
 
 
-def _parse_uuid(value: str, *, field: str) -> uuid.UUID:
+def _parse_uuid(value: str, *, field: str, status_code: int = status.HTTP_401_UNAUTHORIZED) -> uuid.UUID:
     try:
         return uuid.UUID(value)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status_code,
             detail=f"Invalid JWT claim: {field}",
         ) from e
 
@@ -80,12 +82,18 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User is not assigned or inactive. Contact the operator.",
         )
+    memberships = (
+        db.query(UserSalon.salon_id)
+        .filter(UserSalon.user_id == app_user.id)
+        .all()
+    )
+    salon_ids = [sid for sid, in memberships]
     return CurrentUser(
         id=app_user.id,
         supabase_user_id=app_user.supabase_user_id,
         email=app_user.email or email,
         role=app_user.role,
-        salon_id=app_user.salon_id,
+        salon_ids=tuple(salon_ids),
     )
 
 
@@ -100,12 +108,20 @@ def require_roles(*roles: str):
     return _dep
 
 
-def require_salon(user: CurrentUser = Depends(get_current_user)) -> uuid.UUID:
+def require_salon(
+    user: CurrentUser,
+    x_salon_id: str | None = None,
+) -> uuid.UUID:
+    if not x_salon_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="X-Salon-Id header is required")
+
+    salon_id = _parse_uuid(
+        x_salon_id,
+        field="X-Salon-Id",
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
     if user.is_super_admin():
-        # super_admin may act without a salon context; endpoints that need salon must enforce it explicitly.
-        if user.salon_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="salon_id is required for this user")
-        return user.salon_id
-    if user.salon_id is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a salon")
-    return user.salon_id
+        return salon_id
+    if salon_id not in user.salon_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to this salon")
+    return salon_id
