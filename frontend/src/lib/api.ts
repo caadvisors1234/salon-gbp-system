@@ -1,4 +1,6 @@
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
+export const CURRENT_SALON_ID_STORAGE_KEY = "current_salon_id";
+export const SALON_CHANGED_EVENT = "salon:changed";
 
 export class ApiError extends Error {
   constructor(
@@ -63,6 +65,47 @@ function extractErrorDetail(rawBody: string): string {
   }
 }
 
+function getSafeStorage(): Partial<Storage> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return (window.localStorage as Partial<Storage> | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function getCurrentSalonId(): string | null {
+  const storage = getSafeStorage();
+  if (!storage || typeof storage.getItem !== "function") return null;
+  let raw = "";
+  try {
+    raw = storage.getItem(CURRENT_SALON_ID_STORAGE_KEY) ?? "";
+  } catch {
+    return null;
+  }
+  const value = raw?.trim() ?? "";
+  return value.length > 0 ? value : null;
+}
+
+export function setCurrentSalonId(salonId: string | null): void {
+  const storage = getSafeStorage();
+  if (!storage || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") return;
+  const before = getCurrentSalonId();
+  try {
+    if (salonId && salonId.trim()) {
+      storage.setItem(CURRENT_SALON_ID_STORAGE_KEY, salonId);
+    } else {
+      storage.removeItem(CURRENT_SALON_ID_STORAGE_KEY);
+    }
+  } catch {
+    return;
+  }
+  const after = getCurrentSalonId();
+  if (before !== after) {
+    window.dispatchEvent(new CustomEvent(SALON_CHANGED_EVENT, { detail: { salonId: after } }));
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   opts: RequestInit & { token?: string } = {},
@@ -75,6 +118,12 @@ export async function apiFetch<T>(
   }
   if (opts.token) {
     headers.set("Authorization", `Bearer ${opts.token}`);
+  }
+  if (!headers.has("X-Salon-Id")) {
+    const currentSalonId = getCurrentSalonId();
+    if (currentSalonId) {
+      headers.set("X-Salon-Id", currentSalonId);
+    }
   }
   const res = await fetch(url, { ...opts, headers });
   if (!res.ok) {

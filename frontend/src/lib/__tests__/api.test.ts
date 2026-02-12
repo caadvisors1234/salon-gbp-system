@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { apiFetch, ApiError } from "../api";
+import { apiFetch, ApiError, setCurrentSalonId } from "../api";
 
 const mockFetch = vi.fn();
 
 beforeEach(() => {
   vi.stubGlobal("fetch", mockFetch);
+  if (typeof window.localStorage?.removeItem === "function") {
+    window.localStorage.removeItem("current_salon_id");
+  }
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -106,5 +109,27 @@ describe("apiFetch", () => {
     }
     expect(handler).toHaveBeenCalledTimes(1);
     window.removeEventListener("auth:expired", handler);
+  });
+
+  it("continues apiFetch when localStorage getter throws SecurityError", async () => {
+    const localStorageGetter = vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new DOMException("Blocked", "SecurityError");
+    });
+    let capturedHeaders: { get(name: string): string | null } | null = null;
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) => {
+      capturedHeaders = init.headers as { get(name: string): string | null };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ok: true }),
+      });
+    });
+
+    await expect(apiFetch("/test")).resolves.toEqual({ ok: true });
+    expect(capturedHeaders).not.toBeNull();
+    expect(capturedHeaders!.get("X-Salon-Id")).toBeNull();
+    expect(() => setCurrentSalonId("salon-1")).not.toThrow();
+
+    localStorageGetter.mockRestore();
   });
 });
