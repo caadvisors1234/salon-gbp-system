@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { useApiFetch } from "../hooks/useApiFetch";
+import { useBulkActions } from "../hooks/useBulkActions";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
 import Badge, { statusVariant } from "../components/Badge";
@@ -50,6 +51,20 @@ export default function MediaUploadsPage({ kind = "pending" }: { kind?: "pending
     [kind],
   );
 
+  const bulk = useBulkActions({
+    apiPrefix: "/media_uploads",
+    items: uploads,
+    enabled: isPending,
+    refetch,
+    setErr,
+    labels: {
+      approveSuccess: "件を投稿キューに登録しました",
+      skipSuccess: "件をスキップしました",
+      confirmApprove: (n) => `${n}件のメディアを投稿キューに登録します。よろしいですか？`,
+      confirmSkip: (n) => `${n}件のメディアをスキップします。よろしいですか？`,
+    },
+  });
+
   const title = isPending ? "メディアアップロード" : "メディア履歴";
   const description = isPending
     ? "承認するとGoogleビジネスプロフィールにアップロードされます"
@@ -63,6 +78,29 @@ export default function MediaUploadsPage({ kind = "pending" }: { kind?: "pending
     ...(isPending
       ? [
           {
+            key: "select" as const,
+            header: "選択",
+            className: "w-20",
+            render: (u: MediaUploadListItem) => (
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-stone-300 text-pink-600 focus:ring-pink-300"
+                checked={bulk.selectedIds.has(u.id)}
+                disabled={actioningId !== null || bulk.isBusy}
+                aria-label={`メディアを選択 ${u.id}`}
+                onClick={(e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  e.stopPropagation();
+                  bulk.setSelected(u.id, e.target.checked);
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(isPending
+      ? [
+          {
             key: "action" as const,
             header: "",
             render: (u: MediaUploadListItem) => (
@@ -71,7 +109,7 @@ export default function MediaUploadsPage({ kind = "pending" }: { kind?: "pending
                   variant="primary"
                   className="text-xs px-3 py-1.5"
                   loading={actioningId === u.id}
-                  disabled={actioningId !== null}
+                  disabled={actioningId !== null || bulk.isBusy}
                   onClick={async (e: React.MouseEvent) => {
                     e.stopPropagation();
                     if (!token) return;
@@ -93,7 +131,7 @@ export default function MediaUploadsPage({ kind = "pending" }: { kind?: "pending
                 <Button
                   variant="ghost"
                   className="text-xs px-3 py-1.5"
-                  disabled={actioningId !== null}
+                  disabled={actioningId !== null || bulk.isBusy}
                   onClick={async (e: React.MouseEvent) => {
                     e.stopPropagation();
                     if (!token) return;
@@ -150,6 +188,45 @@ export default function MediaUploadsPage({ kind = "pending" }: { kind?: "pending
         }
       />
       {(error || err) && <Alert variant="error" message={error || err!} />}
+      {isPending && (uploads?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-white p-3">
+          <span className="text-sm text-stone-600">選択中: {bulk.selectedCount}件</span>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            disabled={loading || bulk.isBusy || actioningId !== null}
+            onClick={bulk.selectAll}
+          >
+            全選択
+          </Button>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            disabled={bulk.selectedCount === 0 || bulk.isBusy || actioningId !== null}
+            onClick={bulk.clearSelected}
+          >
+            選択解除
+          </Button>
+          <Button
+            variant="primary"
+            className="px-3 py-1.5 text-xs"
+            loading={bulk.bulkApproving}
+            disabled={bulk.selectedCount === 0 || bulk.isBusy || actioningId !== null || !token}
+            onClick={bulk.bulkApproveSelected}
+          >
+            選択したメディアを投稿キューへ
+          </Button>
+          <Button
+            variant="danger"
+            className="px-3 py-1.5 text-xs"
+            loading={bulk.bulkSkipping}
+            disabled={bulk.selectedCount === 0 || bulk.isBusy || actioningId !== null || !token}
+            onClick={bulk.bulkSkipSelected}
+          >
+            選択したメディアをスキップ
+          </Button>
+        </div>
+      )}
       <DataTable
         columns={columns}
         data={uploads ?? []}

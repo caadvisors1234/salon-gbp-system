@@ -199,6 +199,7 @@ export function roleLabel(role: string): string {
 const EXACT_ERROR_MAP: Record<string, string> = {
   "Post not found": "投稿が見つかりません",
   "Post is not pending": "この投稿は承認待ち状態ではありません",
+  "Post already posted": "この投稿はすでに投稿済みです",
   "OFFER posts require event_title, event_start_date, and event_end_date":
     "特典投稿には「特典タイトル」「開始日」「終了日」の入力が必要です",
   "event_end_date must be on or after event_start_date":
@@ -207,6 +208,7 @@ const EXACT_ERROR_MAP: Record<string, string> = {
     "特典タイトルは58文字以内で入力してください",
   "Upload is not pending": "このアップロードは承認待ち状態ではありません",
   "Upload not found": "アップロードが見つかりません",
+  "Upload already completed": "このアップロードはすでに完了しています",
   "GBP is not connected": "Googleビジネスプロフィールに接続されていません",
   "GBP connection not found": "Googleビジネスプロフィールの接続が見つかりません",
   "Invalid login credentials": "メールアドレスまたはパスワードが正しくありません",

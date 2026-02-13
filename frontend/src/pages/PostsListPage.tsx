@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
 import { useApiFetch } from "../hooks/useApiFetch";
+import { useBulkActions } from "../hooks/useBulkActions";
 import PageHeader from "../components/PageHeader";
 import DataTable, { Column } from "../components/DataTable";
 import Badge, { statusVariant, postTypeVariant } from "../components/Badge";
@@ -18,15 +19,16 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
   const { session } = useAuth();
   const token = session?.access_token;
   const { toast } = useToast();
+  const isPending = kind === "pending";
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const title = kind === "pending" ? "承認待ち投稿" : "投稿履歴";
+  const title = isPending ? "承認待ち投稿" : "投稿履歴";
 
   useEffect(() => {
     document.title = `${title} | サロンGBP管理`;
   }, [title]);
 
-  const path = kind === "pending"
+  const path = isPending
     ? "/posts?status=pending&limit=200"
     : "/posts?exclude_status=pending,queued,posting&limit=200";
   const { data: posts, loading, error, refetch } = useApiFetch<PostListItem[]>(
@@ -34,8 +36,45 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
     [kind],
   );
 
+  const bulk = useBulkActions({
+    apiPrefix: "/posts",
+    items: posts,
+    enabled: isPending,
+    refetch,
+    setErr,
+    labels: {
+      approveSuccess: "件を投稿キューに登録しました",
+      skipSuccess: "件をスキップしました",
+      confirmApprove: (n) => `${n}件の投稿を投稿キューに登録します。よろしいですか？`,
+      confirmSkip: (n) => `${n}件の投稿をスキップします。よろしいですか？`,
+    },
+  });
+
   const columns: Column<PostListItem>[] = [
-    ...(kind === "pending"
+    ...(isPending
+      ? [
+          {
+            key: "select" as const,
+            header: "選択",
+            className: "w-20",
+            render: (p: PostListItem) => (
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-stone-300 text-pink-600 focus:ring-pink-300"
+                checked={bulk.selectedIds.has(p.id)}
+                disabled={actioningId !== null || bulk.isBusy}
+                aria-label={`投稿を選択 ${p.id}`}
+                onClick={(e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  e.stopPropagation();
+                  bulk.setSelected(p.id, e.target.checked);
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(isPending
       ? [
           {
             key: "action" as const,
@@ -46,7 +85,7 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
                   variant="primary"
                   className="text-xs px-3 py-1.5"
                   loading={actioningId === p.id}
-                  disabled={actioningId !== null}
+                  disabled={actioningId !== null || bulk.isBusy}
                   onClick={async (e: React.MouseEvent) => {
                     e.stopPropagation();
                     if (!token) return;
@@ -68,7 +107,7 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
                 <Button
                   variant="ghost"
                   className="text-xs px-3 py-1.5"
-                  disabled={actioningId !== null}
+                  disabled={actioningId !== null || bulk.isBusy}
                   onClick={async (e: React.MouseEvent) => {
                     e.stopPropagation();
                     if (!token) return;
@@ -138,6 +177,45 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
     <div className="space-y-4">
       <PageHeader title={title} description="クリックして編集・投稿・再試行" />
       {(error || err) && <Alert variant="error" message={error || err!} />}
+      {isPending && (posts?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-white p-3">
+          <span className="text-sm text-stone-600">選択中: {bulk.selectedCount}件</span>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            disabled={loading || bulk.isBusy || actioningId !== null}
+            onClick={bulk.selectAll}
+          >
+            全選択
+          </Button>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            disabled={bulk.selectedCount === 0 || bulk.isBusy || actioningId !== null}
+            onClick={bulk.clearSelected}
+          >
+            選択解除
+          </Button>
+          <Button
+            variant="primary"
+            className="px-3 py-1.5 text-xs"
+            loading={bulk.bulkApproving}
+            disabled={bulk.selectedCount === 0 || bulk.isBusy || actioningId !== null || !token}
+            onClick={bulk.bulkApproveSelected}
+          >
+            選択した投稿を投稿キューへ
+          </Button>
+          <Button
+            variant="danger"
+            className="px-3 py-1.5 text-xs"
+            loading={bulk.bulkSkipping}
+            disabled={bulk.selectedCount === 0 || bulk.isBusy || actioningId !== null || !token}
+            onClick={bulk.bulkSkipSelected}
+          >
+            選択した投稿をスキップ
+          </Button>
+        </div>
+      )}
       <DataTable
         columns={columns}
         data={posts ?? []}
