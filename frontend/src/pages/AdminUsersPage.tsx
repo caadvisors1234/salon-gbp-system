@@ -43,7 +43,6 @@ export default function AdminUsersPage() {
     password: "",
     salon_ids: [] as string[],
     role: "staff",
-    display_name: "",
   });
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -69,7 +68,7 @@ export default function AdminUsersPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const salonLabelById = Object.fromEntries(salons.map((s) => [s.id, `${s.name} (${s.slug})`]));
+  const salonLabelById = Object.fromEntries(salons.map((s) => [s.id, s.name]));
 
   const columns: Column<AppUserResponse>[] = [
     {
@@ -182,10 +181,9 @@ export default function AdminUsersPage() {
                   password: inviteForm.password || null,
                   salon_ids: inviteForm.salon_ids,
                   role: inviteForm.role,
-                  display_name: inviteForm.display_name || null,
                 }),
               });
-              setInviteForm({ email: "", password: "", salon_ids: [], role: "staff", display_name: "" });
+              setInviteForm({ email: "", password: "", salon_ids: [], role: "staff" });
               setInviteErrors({});
               toast("success", "ユーザーを招待しました");
               refetch();
@@ -216,7 +214,7 @@ export default function AdminUsersPage() {
               }
             >
               {salons.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} ({s.slug})</option>
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </FormField>
@@ -226,9 +224,6 @@ export default function AdminUsersPage() {
               <option value="salon_admin">サロン管理者</option>
               <option value="super_admin">管理者</option>
             </select>
-          </FormField>
-          <FormField label="表示名" className="sm:col-span-2">
-            <input className={inputClass} value={inviteForm.display_name} onChange={(e) => setInviteForm({ ...inviteForm, display_name: e.target.value })} />
           </FormField>
           <div className="sm:col-span-2">
             <Button variant="primary" type="submit" disabled={inviteLoading}>
@@ -299,7 +294,7 @@ export default function AdminUsersPage() {
               }
             >
               {salons.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} ({s.slug})</option>
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </FormField>

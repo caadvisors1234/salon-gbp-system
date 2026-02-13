@@ -18,7 +18,7 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
   const { session } = useAuth();
   const token = session?.access_token;
   const { toast } = useToast();
-  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [actioningId, setActioningId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const title = kind === "pending" ? "承認待ち投稿" : "投稿履歴";
 
@@ -35,11 +35,72 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
   );
 
   const columns: Column<PostListItem>[] = [
-    {
-      key: "status",
-      header: "ステータス",
-      render: (p) => <Badge variant={statusVariant(p.status)}>{statusLabel(p.status)}</Badge>,
-    },
+    ...(kind === "pending"
+      ? [
+          {
+            key: "action" as const,
+            header: "",
+            render: (p: PostListItem) => (
+              <div className="flex gap-1">
+                <Button
+                  variant="primary"
+                  className="text-xs px-3 py-1.5"
+                  loading={actioningId === p.id}
+                  disabled={actioningId !== null}
+                  onClick={async (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    if (!token) return;
+                    setActioningId(p.id);
+                    setErr(null);
+                    try {
+                      await apiFetch(`/posts/${p.id}/approve`, { method: "POST", token });
+                      toast("success", "投稿キューに登録しました");
+                      refetch();
+                    } catch (ex: unknown) {
+                      setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
+                    } finally {
+                      setActioningId(null);
+                    }
+                  }}
+                >
+                  投稿
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="text-xs px-3 py-1.5"
+                  disabled={actioningId !== null}
+                  onClick={async (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    if (!token) return;
+                    setActioningId(p.id);
+                    setErr(null);
+                    try {
+                      await apiFetch(`/posts/${p.id}/skip`, { method: "POST", token });
+                      toast("success", "スキップしました");
+                      refetch();
+                    } catch (ex: unknown) {
+                      setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
+                    } finally {
+                      setActioningId(null);
+                    }
+                  }}
+                >
+                  スキップ
+                </Button>
+              </div>
+            ),
+          },
+        ]
+      : []),
+    ...(kind === "history"
+      ? [
+          {
+            key: "status" as const,
+            header: "ステータス",
+            render: (p: PostListItem) => <Badge variant={statusVariant(p.status)}>{statusLabel(p.status)}</Badge>,
+          },
+        ]
+      : []),
     {
       key: "type",
       header: "種別",
@@ -71,44 +132,11 @@ export default function PostsListPage({ kind }: { kind: "pending" | "history" })
             render: (p: PostListItem) => <span className="text-xs text-stone-500">{formatDateTime(p.posted_at)}</span>,
         }]
       : []),
-    ...(kind === "pending"
-      ? [
-          {
-            key: "approve" as const,
-            header: "",
-            render: (p: PostListItem) => (
-              <Button
-                variant="primary"
-                className="text-xs px-3 py-1.5"
-                loading={approvingId === p.id}
-                disabled={approvingId !== null}
-                onClick={async (e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  if (!token) return;
-                  setApprovingId(p.id);
-                  setErr(null);
-                  try {
-                    await apiFetch(`/posts/${p.id}/approve`, { method: "POST", token });
-                    toast("success", "承認しました");
-                    refetch();
-                  } catch (ex: unknown) {
-                    setErr(translateError(ex instanceof Error ? ex.message : String(ex)));
-                  } finally {
-                    setApprovingId(null);
-                  }
-                }}
-              >
-                承認
-              </Button>
-            ),
-          },
-        ]
-      : []),
   ];
 
   return (
     <div className="space-y-4">
-      <PageHeader title={title} description="クリックして編集・承認・再試行" />
+      <PageHeader title={title} description="クリックして編集・投稿・再試行" />
       {(error || err) && <Alert variant="error" message={error || err!} />}
       <DataTable
         columns={columns}

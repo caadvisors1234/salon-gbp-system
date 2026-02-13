@@ -123,7 +123,6 @@ describe("AdminUsersPage", () => {
             password: null,
             salon_ids: ["s1", "s2"],
             role: "staff",
-            display_name: null,
           }),
         }),
       );

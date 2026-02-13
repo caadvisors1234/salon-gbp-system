@@ -303,7 +303,7 @@ export default function PostDetailPage() {
             disabled={post.status !== "pending"}
             onClick={() => action(`/posts/${post.id}/approve`)}
           >
-            承認（キュー登録）
+            投稿
           </Button>
           <Button
             variant="secondary"

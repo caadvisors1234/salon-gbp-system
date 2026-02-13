@@ -31,11 +31,6 @@ export default function AdminMonitorPage() {
 
   const columns: Column<SalonMonitorItem>[] = [
     {
-      key: "slug",
-      header: "スラグ",
-      render: (i) => <span className="font-medium text-stone-900">{i.slug}</span>,
-    },
-    {
       key: "name",
       header: "サロン名",
       render: (i) => <span className="text-stone-600">{i.name}</span>,

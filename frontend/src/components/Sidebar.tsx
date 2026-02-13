@@ -145,7 +145,7 @@ export default function Sidebar({
           >
             {salons.map((salon) => (
               <option key={salon.id} value={salon.id}>
-                {salon.name} ({salon.slug})
+                {salon.name}
               </option>
             ))}
           </select>

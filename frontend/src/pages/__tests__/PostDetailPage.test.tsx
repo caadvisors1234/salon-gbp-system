@@ -145,11 +145,11 @@ describe("PostDetailPage", () => {
     mockApiFetch.mockResolvedValue(post);
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("承認（キュー登録）")).toBeInTheDocument();
+      expect(screen.getByText("投稿")).toBeInTheDocument();
     });
 
     mockApiFetch.mockResolvedValueOnce({ ...post, status: "queued" });
-    await user.click(screen.getByText("承認（キュー登録）"));
+    await user.click(screen.getByText("投稿"));
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(
         "/posts/post-1/approve",
@@ -162,7 +162,7 @@ describe("PostDetailPage", () => {
     mockApiFetch.mockResolvedValue({ ...post, status: "posted" });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("承認（キュー登録）")).toBeDisabled();
+      expect(screen.getByText("投稿")).toBeDisabled();
     });
   });
 
