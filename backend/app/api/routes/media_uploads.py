@@ -18,7 +18,6 @@ router = APIRouter()
 def list_uploads(
     status_filter: str | None = Query(default=None, alias="status"),
     exclude_status: str | None = Query(default=None),
-    salon_id: uuid.UUID | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(db_session),
@@ -26,11 +25,8 @@ def list_uploads(
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[MediaUploadListItem]:
     q = db.query(GbpMediaUpload)
-    if user.is_super_admin():
-        if salon_id:
-            q = q.filter(GbpMediaUpload.salon_id == salon_id)
-    else:
-        q = q.filter(GbpMediaUpload.salon_id == require_salon(user, x_salon_id))
+    salon_id = require_salon(user, x_salon_id)
+    q = q.filter(GbpMediaUpload.salon_id == salon_id)
     if status_filter:
         q = q.filter(GbpMediaUpload.status == status_filter)
     if exclude_status:
@@ -51,7 +47,8 @@ def get_upload(
     up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == upload_id).one_or_none()
     if up is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
-    if not user.is_super_admin() and up.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if up.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
     return MediaUploadDetail.model_validate(up)
 
@@ -67,7 +64,8 @@ def update_upload(
     up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == upload_id).one_or_none()
     if up is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
-    if not user.is_super_admin() and up.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if up.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
 
     data = payload.model_dump(exclude_unset=True)
@@ -89,7 +87,8 @@ def approve_upload(
     up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == upload_id).one_or_none()
     if up is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
-    if not user.is_super_admin() and up.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if up.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
     if up.status != "pending":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Upload is not pending")
@@ -112,7 +111,8 @@ def retry_upload(
     up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == upload_id).one_or_none()
     if up is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
-    if not user.is_super_admin() and up.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if up.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
     if up.status != "failed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Upload is not failed")
@@ -135,7 +135,8 @@ def skip_upload(
     up = db.query(GbpMediaUpload).filter(GbpMediaUpload.id == upload_id).one_or_none()
     if up is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
-    if not user.is_super_admin() and up.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if up.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
     if up.status in ("uploaded",):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Upload already completed")

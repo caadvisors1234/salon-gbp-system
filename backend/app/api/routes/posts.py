@@ -40,7 +40,6 @@ def _validate_offer_fields(post: GbpPost) -> None:
 def list_posts(
     status_filter: str | None = Query(default=None, alias="status"),
     exclude_status: str | None = Query(default=None),
-    salon_id: uuid.UUID | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(db_session),
@@ -48,11 +47,8 @@ def list_posts(
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[PostListItem]:
     q = db.query(GbpPost)
-    if user.is_super_admin():
-        if salon_id:
-            q = q.filter(GbpPost.salon_id == salon_id)
-    else:
-        q = q.filter(GbpPost.salon_id == require_salon(user, x_salon_id))
+    salon_id = require_salon(user, x_salon_id)
+    q = q.filter(GbpPost.salon_id == salon_id)
 
     if status_filter:
         q = q.filter(GbpPost.status == status_filter)
@@ -74,7 +70,8 @@ def get_post(
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if post.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     return PostDetail.model_validate(post)
 
@@ -90,7 +87,8 @@ def update_post(
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if post.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
     data = payload.model_dump(exclude_unset=True)
@@ -118,7 +116,8 @@ def approve_post(
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if post.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status != "pending":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post is not pending")
@@ -143,7 +142,8 @@ def retry_post(
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if post.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status != "failed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post is not failed")
@@ -168,7 +168,8 @@ def skip_post(
     post = db.query(GbpPost).filter(GbpPost.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
-    if not user.is_super_admin() and post.salon_id != require_salon(user, x_salon_id):
+    salon_id = require_salon(user, x_salon_id)
+    if post.salon_id != salon_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     if post.status in ("posted",):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Post already posted")
