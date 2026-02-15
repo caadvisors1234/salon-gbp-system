@@ -7,26 +7,28 @@ import Card from "../components/Card";
 import Badge, { postTypeVariant } from "../components/Badge";
 import Alert from "../components/Alert";
 import { SkeletonCard } from "../components/Skeleton";
-import { IconAlert as IconAlertIcon, IconPosts, IconSettings } from "../components/icons";
-import { formatRelative } from "../lib/format";
+import { IconPosts, IconMedia, IconSettings } from "../components/icons";
+import { useNavBadgeCounts } from "../hooks/useNavBadgeCounts";
+import { formatCount, formatRelative } from "../lib/format";
 import { roleLabel, postTypeLabel } from "../lib/labels";
-import type { MeResponse, AlertResponse, PostListItem } from "../types/api";
+import type { MeResponse, PostListItem } from "../types/api";
 
 export default function DashboardPage() {
   useEffect(() => {
     document.title = "ダッシュボード | サロンGBP管理";
   }, []);
 
-  const { data, loading, error } = useApiFetch<[MeResponse, AlertResponse[], PostListItem[]]>(
+  const { counts } = useNavBadgeCounts();
+
+  const { data, loading, error } = useApiFetch<[MeResponse, PostListItem[]]>(
     (token, signal) =>
       Promise.all([
         apiFetch<MeResponse>("/me", { token, signal }),
-        apiFetch<AlertResponse[]>("/alerts?status=open", { token, signal }),
-        apiFetch<PostListItem[]>("/posts?status=pending&limit=50", { token, signal }),
+        apiFetch<PostListItem[]>("/posts?status=pending&limit=5", { token, signal }),
       ]),
   );
 
-  const [me, alerts, pendingPosts] = data ?? [null, [], []];
+  const [me, pendingPosts] = data ?? [null, []];
 
   if (loading) {
     return (
@@ -53,27 +55,27 @@ export default function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-amber-50 p-2">
-              <IconAlertIcon className="h-5 w-5 text-amber-600" />
-            </div>
-            <div className="text-sm text-stone-500">未対応アラート</div>
-          </div>
-          <div className="mt-3 text-3xl font-bold text-stone-900">{alerts.length}</div>
-          <Link className="mt-2 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/alerts">
-            アラートを確認 →
-          </Link>
-        </div>
-
-        <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
             <div className="rounded-lg bg-pink-50 p-2">
               <IconPosts className="h-5 w-5 text-pink-600" />
             </div>
             <div className="text-sm text-stone-500">承認待ち投稿</div>
           </div>
-          <div className="mt-3 text-3xl font-bold text-stone-900">{pendingPosts.length}</div>
+          <div className="mt-3 text-3xl font-bold text-stone-900">{formatCount(counts["/posts/pending"] ?? 0)}</div>
           <Link className="mt-2 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/posts/pending">
             投稿を確認 →
+          </Link>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-violet-50 p-2">
+              <IconMedia className="h-5 w-5 text-violet-600" />
+            </div>
+            <div className="text-sm text-stone-500">メディア</div>
+          </div>
+          <div className="mt-3 text-3xl font-bold text-stone-900">{formatCount(counts["/uploads/pending"] ?? 0)}</div>
+          <Link className="mt-2 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/uploads/pending">
+            メディアを確認 →
           </Link>
         </div>
 

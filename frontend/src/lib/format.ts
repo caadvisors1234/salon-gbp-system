@@ -30,6 +30,10 @@ export function formatDate(value: string | null | undefined): string {
   }
 }
 
+export function formatCount(n: number, max = 99): string {
+  return n > max ? `${max}+` : String(n);
+}
+
 export function formatRelative(value: string | null | undefined): string {
   if (!value) return "";
   try {

@@ -1,9 +1,14 @@
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Sidebar from "../Sidebar";
+
+const mockCounts = vi.fn(() => ({ counts: {} as Record<string, number>, loading: false }));
+vi.mock("../../hooks/useNavBadgeCounts", () => ({
+  useNavBadgeCounts: () => mockCounts(),
+}));
 
 function renderSidebar(props: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   const defaults = {
@@ -24,6 +29,11 @@ function renderSidebar(props: Partial<Parameters<typeof Sidebar>[0]> = {}) {
 }
 
 describe("Sidebar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCounts.mockReturnValue({ counts: {}, loading: false });
+  });
+
   it("renders common nav items", () => {
     renderSidebar();
     expect(screen.getByText("ダッシュボード")).toBeInTheDocument();
@@ -108,5 +118,28 @@ describe("Sidebar", () => {
     expect(closeBtn).toBeTruthy();
     await user.click(closeBtn);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows badge counts when items are pending", () => {
+    mockCounts.mockReturnValue({
+      counts: { "/posts/pending": 3, "/uploads/pending": 1, "/alerts": 2 },
+      loading: false,
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("does not show badges when counts are zero", () => {
+    mockCounts.mockReturnValue({ counts: {}, loading: false });
+
+    renderSidebar();
+
+    // No badge elements should be rendered (check by the pink badge class)
+    const badges = document.querySelectorAll(".bg-pink-600");
+    expect(badges).toHaveLength(0);
   });
 });

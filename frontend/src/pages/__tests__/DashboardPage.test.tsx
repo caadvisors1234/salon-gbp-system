@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import DashboardPage from "../DashboardPage";
-import type { MeResponse, AlertResponse, PostListItem } from "../../types/api";
+import type { MeResponse, PostListItem } from "../../types/api";
 
 // Mock apiFetch
 const mockApiFetch = vi.fn();
@@ -26,6 +26,12 @@ vi.mock("../../lib/auth", () => ({
   }),
 }));
 
+// Mock useNavBadgeCounts
+const mockCounts = vi.fn(() => ({ counts: {} as Record<string, number>, loading: false }));
+vi.mock("../../hooks/useNavBadgeCounts", () => ({
+  useNavBadgeCounts: () => mockCounts(),
+}));
+
 // Mock toast
 vi.mock("../../lib/toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
@@ -39,22 +45,6 @@ const me: MeResponse = {
   salon_ids: ["s1"],
   salons: [{ id: "s1", slug: "s1", name: "Salon 1", is_active: true }],
 };
-
-const alerts: AlertResponse[] = [
-  {
-    id: "a1",
-    salon_id: "s1",
-    severity: "high",
-    alert_type: "token_expired",
-    message: "GBPトークンが期限切れです",
-    entity_type: null,
-    entity_id: null,
-    status: "open",
-    acked_by: null,
-    acked_at: null,
-    created_at: new Date().toISOString(),
-  },
-];
 
 const posts: PostListItem[] = [
   {
@@ -84,15 +74,19 @@ function renderPage() {
 describe("DashboardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCounts.mockReturnValue({ counts: {}, loading: false });
   });
 
-  it("shows dashboard after data loads", async () => {
+  function mockApi() {
     mockApiFetch.mockImplementation((url: string) => {
-      if (url.includes("/me")) return Promise.resolve(me);
-      if (url.includes("/alerts")) return Promise.resolve(alerts);
       if (url.includes("/posts")) return Promise.resolve(posts);
+      if (url.includes("/me")) return Promise.resolve(me);
       return Promise.resolve(null);
     });
+  }
+
+  it("shows dashboard after data loads", async () => {
+    mockApi();
 
     renderPage();
     await waitFor(() => {
@@ -103,26 +97,25 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("displays alert and post counts", async () => {
-    mockApiFetch.mockImplementation((url: string) => {
-      if (url.includes("/me")) return Promise.resolve(me);
-      if (url.includes("/alerts")) return Promise.resolve(alerts);
-      if (url.includes("/posts")) return Promise.resolve(posts);
-      return Promise.resolve(null);
+  it("displays post and media counts", async () => {
+    mockCounts.mockReturnValue({
+      counts: { "/posts/pending": 3, "/uploads/pending": 2 },
+      loading: false,
     });
+    mockApi();
 
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("未対応アラート")).toBeInTheDocument();
-    });
-    await waitFor(() => {
-      // "承認待ち投稿" appears in both the count card and the card section title
       const pendingLabels = screen.getAllByText("承認待ち投稿");
       expect(pendingLabels.length).toBeGreaterThanOrEqual(1);
     });
-    // Count values rendered as text
-    const countElements = screen.getAllByText("1");
-    expect(countElements.length).toBeGreaterThanOrEqual(2);
+    await waitFor(() => {
+      expect(screen.getByText("メディア")).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("3")).toBeInTheDocument();
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
   });
 
   it("shows error alert on fetch failure", async () => {
@@ -135,16 +128,10 @@ describe("DashboardPage", () => {
   });
 
   it("displays pending posts section", async () => {
-    mockApiFetch.mockImplementation((url: string) => {
-      if (url.includes("/me")) return Promise.resolve(me);
-      if (url.includes("/alerts")) return Promise.resolve(alerts);
-      if (url.includes("/posts")) return Promise.resolve(posts);
-      return Promise.resolve(null);
-    });
+    mockApi();
 
     renderPage();
     await waitFor(() => {
-      // Card title for pending posts section
       const cards = screen.getAllByText("承認待ち投稿");
       expect(cards.length).toBeGreaterThanOrEqual(1);
     });

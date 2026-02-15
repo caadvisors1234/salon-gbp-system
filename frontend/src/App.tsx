@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 import { AuthProvider, useAuth } from "./lib/auth";
 import { ToastProvider, useToast } from "./lib/toast";
 import { apiFetch, getCurrentSalonId, setCurrentSalonId } from "./lib/api";
+import { NavBadgeCountsProvider } from "./hooks/useNavBadgeCounts";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IconMenu, IconSpinner } from "./components/icons";
@@ -118,78 +119,80 @@ function Shell() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-white focus:text-pink-600 focus:shadow-lg focus:rounded-lg"
-      >
-        メインコンテンツへスキップ
-      </a>
-
-      <Sidebar
-        email={me?.email ?? session?.user.email ?? ""}
-        role={me?.role ?? ""}
-        salons={me?.salons ?? []}
-        currentSalonId={currentSalonId}
-        onSalonChange={(salonId) => {
-          setCurrentSalonId(salonId);
-          setCurrentSalonIdState(salonId);
-        }}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onSignOut={async () => {
-          const { supabase } = await import("./lib/supabase");
-          if (supabase) {
-            await supabase.auth.signOut();
-          }
-          navigate("/login");
-        }}
-      />
-
-      {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-stone-200 bg-white px-4 py-3 md:hidden">
-        <button
-          className="rounded-lg p-1.5 hover:bg-stone-100"
-          aria-label="メニューを開く"
-          onClick={() => setSidebarOpen(true)}
+    <NavBadgeCountsProvider>
+      <div className="min-h-screen bg-stone-50">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-white focus:text-pink-600 focus:shadow-lg focus:rounded-lg"
         >
-          <IconMenu className="h-5 w-5 text-stone-600" />
-        </button>
-        <span className="font-bold text-pink-600">Salon GBP</span>
-      </div>
+          メインコンテンツへスキップ
+        </a>
 
-      {/* Main content */}
-      <main id="main-content" className="md:ml-64">
-        <div key={currentSalonId ?? "no-salon"} className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
-          <ErrorBoundary resetKeys={[location.pathname, currentSalonId ?? ""]}>
-            <Suspense fallback={
-              <div className="flex items-center justify-center py-12">
-                <IconSpinner className="h-6 w-6 text-pink-500" />
-              </div>
-            }>
-              <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
-                <Route path="/settings/gbp" element={<RequireSalonAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSalonAdmin>} />
-                <Route path="/settings/instagram" element={<RequireSalonAdmin role={me?.role ?? ""}><InstagramSettingsPage /></RequireSalonAdmin>} />
-                <Route path="/posts/:postId" element={<PostDetailPage />} />
-                <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
-                <Route path="/posts/history" element={<PostsListPage kind="history" />} />
-                <Route path="/uploads/pending" element={<MediaUploadsPage kind="pending" />} />
-                <Route path="/uploads/history" element={<MediaUploadsPage kind="history" />} />
-                <Route path="/alerts" element={<AlertsPage />} />
-                <Route path="/admin/salons" element={<AdminSalonsPage />} />
-                <Route path="/admin/monitor" element={<AdminMonitorPage />} />
-                <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
-                <Route path="/admin/users" element={<AdminUsersPage />} />
-                <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
-              </Routes>
-            </Suspense>
-          </ErrorBoundary>
+        <Sidebar
+          email={me?.email ?? session?.user.email ?? ""}
+          role={me?.role ?? ""}
+          salons={me?.salons ?? []}
+          currentSalonId={currentSalonId}
+          onSalonChange={(salonId) => {
+            setCurrentSalonId(salonId);
+            setCurrentSalonIdState(salonId);
+          }}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onSignOut={async () => {
+            const { supabase } = await import("./lib/supabase");
+            if (supabase) {
+              await supabase.auth.signOut();
+            }
+            navigate("/login");
+          }}
+        />
+
+        {/* Mobile top bar */}
+        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-stone-200 bg-white px-4 py-3 md:hidden">
+          <button
+            className="rounded-lg p-1.5 hover:bg-stone-100"
+            aria-label="メニューを開く"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <IconMenu className="h-5 w-5 text-stone-600" />
+          </button>
+          <span className="font-bold text-pink-600">Salon GBP</span>
         </div>
-      </main>
-    </div>
+
+        {/* Main content */}
+        <main id="main-content" className="md:ml-64">
+          <div key={currentSalonId ?? "no-salon"} className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
+            <ErrorBoundary resetKeys={[location.pathname, currentSalonId ?? ""]}>
+              <Suspense fallback={
+                <div className="flex items-center justify-center py-12">
+                  <IconSpinner className="h-6 w-6 text-pink-500" />
+                </div>
+              }>
+                <Routes>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
+                  <Route path="/settings/gbp" element={<RequireSalonAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSalonAdmin>} />
+                  <Route path="/settings/instagram" element={<RequireSalonAdmin role={me?.role ?? ""}><InstagramSettingsPage /></RequireSalonAdmin>} />
+                  <Route path="/posts/:postId" element={<PostDetailPage />} />
+                  <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
+                  <Route path="/posts/history" element={<PostsListPage kind="history" />} />
+                  <Route path="/uploads/pending" element={<MediaUploadsPage kind="pending" />} />
+                  <Route path="/uploads/history" element={<MediaUploadsPage kind="history" />} />
+                  <Route path="/alerts" element={<AlertsPage />} />
+                  <Route path="/admin/salons" element={<AdminSalonsPage />} />
+                  <Route path="/admin/monitor" element={<AdminMonitorPage />} />
+                  <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
+                  <Route path="/admin/users" element={<AdminUsersPage />} />
+                  <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        </main>
+      </div>
+    </NavBadgeCountsProvider>
   );
 }
 

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { MeSalonMembership } from "../types/api";
+import { useNavBadgeCounts } from "../hooks/useNavBadgeCounts";
+import { formatCount } from "../lib/format";
 import {
   IconDashboard,
   IconPosts,
@@ -94,6 +96,7 @@ export default function Sidebar({
   onSignOut: () => void;
 }) {
   const location = useLocation();
+  const { counts: badgeCounts } = useNavBadgeCounts();
   const isSuperAdmin = role === "super_admin";
   const isAdmin = role === "super_admin" || role === "salon_admin";
   const sidebarRef = useRef<HTMLElement>(null);
@@ -180,6 +183,11 @@ export default function Sidebar({
                         {item.icon}
                       </span>
                       {item.label}
+                      {badgeCounts[item.to] ? (
+                        <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-pink-600 px-1.5 text-[11px] font-semibold leading-none text-white">
+                          {formatCount(badgeCounts[item.to])}
+                        </span>
+                      ) : null}
                     </Link>
                   );
                 })}
