@@ -24,11 +24,27 @@ cd salon-gbp
 
 ### 1.2. 環境変数の設定
 
+まず安全なパスワード・鍵を生成する:
+
 ```bash
-cp .env.example .env
+# PostgreSQL パスワード
+echo "POSTGRES_PASSWORD: $(openssl rand -base64 24)"
+
+# AES-256 暗号化鍵 (32バイト)
+echo "TOKEN_ENC_KEY_B64: $(python3 -c 'import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
+
+# OAuth HMAC 署名鍵
+echo "OAUTH_STATE_SECRET: $(openssl rand -base64 32)"
 ```
 
-`.env` を以下の本番値で編集:
+`.env.example` をコピーして本番値で編集:
+
+```bash
+cp .env.example .env
+vi .env
+```
+
+`.env` に設定する本番値:
 
 ```bash
 # General
@@ -37,36 +53,50 @@ APP_PUBLIC_BASE_URL=https://salon-gbp.ai-beauty.tokyo
 
 # Backend
 API_CORS_ORIGINS=["https://salon-gbp.ai-beauty.tokyo"]
-DATABASE_URL=postgresql+psycopg://salon_gbp:YOUR_STRONG_PASSWORD@db:5432/salon_gbp
+DATABASE_URL=postgresql+psycopg://salon_gbp:<生成したパスワード>@db:5432/salon_gbp
 REDIS_URL=redis://redis:6379/0
 
 # PostgreSQL (docker-compose.prod.yml が参照)
-POSTGRES_DB=salon_gbp
-POSTGRES_USER=salon_gbp
-POSTGRES_PASSWORD=YOUR_STRONG_PASSWORD   # ← 必ず強力なパスワードを生成
+# POSTGRES_PASSWORD は必須。未設定だとコンテナ起動時にエラーになる。
+# DATABASE_URL 内のパスワードと必ず同じ値にすること。
+POSTGRES_PASSWORD=<生成したパスワード>
 
 # Supabase
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_ANON_KEY=eyJhbG...
-SUPABASE_JWKS_URL=https://xxxxx.supabase.co/auth/v1/jwks
+SUPABASE_JWKS_URL=https://xxxxx.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWT_SECRET=<Supabase Dashboard から取得>
+SUPABASE_JWT_AUDIENCE=authenticated
 SUPABASE_SERVICE_ROLE_KEY=eyJhbG...
 
-# Token encryption (generate: python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())")
-TOKEN_ENC_KEY_B64=
+# Token encryption (上で生成した値)
+TOKEN_ENC_KEY_B64=<生成した値>
 
-# OAuth state signing
-OAUTH_STATE_SECRET=
+# OAuth state signing (上で生成した値)
+OAUTH_STATE_SECRET=<生成した値>
 
 # Google OAuth / GBP
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=https://salon-gbp.ai-beauty.tokyo/api/oauth/google/callback
+GOOGLE_OAUTH_SCOPES=https://www.googleapis.com/auth/business.manage openid email
 
 # Meta / Instagram
 META_APP_ID=
 META_APP_SECRET=
 META_REDIRECT_URI=https://salon-gbp.ai-beauty.tokyo/api/oauth/meta/callback
+META_OAUTH_SCOPES=instagram_basic,pages_show_list
+
+# Media
+MEDIA_ROOT=/data/media
+MEDIA_PUBLIC_PATH=/media
+MEDIA_RETENTION_DAYS=30
+
+# Scraper
+SCRAPER_USER_AGENT=SalonGBPSystem/0.1
 ```
+
+> **注意**: パスワードに `@`, `/`, `%` 等の特殊文字が含まれる場合、`DATABASE_URL` 内ではURLエンコードが必要。
 
 ### 1.3. コンテナのビルドと起動
 
@@ -83,11 +113,19 @@ docker compose --env-file .env -f deploy/docker-compose.prod.yml exec api alembi
 ### 1.5. ヘルスチェック確認
 
 ```bash
-# API
-docker compose --env-file .env -f deploy/docker-compose.prod.yml exec api curl -f http://localhost:8000/api/health
+# 全コンテナのステータス確認 (全て "healthy" であること)
+docker compose --env-file .env -f deploy/docker-compose.prod.yml ps
 
-# Web (nginx)
-docker compose --env-file .env -f deploy/docker-compose.prod.yml exec web wget -qO- http://localhost:8000/healthz
+# API ヘルスチェック
+docker exec salon_gbp_api curl -f http://localhost:8000/api/health
+
+# Web (nginx) ヘルスチェック
+# 注意: Alpine Linux では localhost が IPv6 (::1) に解決されるため 127.0.0.1 を使用
+docker exec salon_gbp_web wget -qO- http://127.0.0.1:8000/healthz
+
+# ドメイン経由の疎通確認 (NPM 設定後)
+curl -s -o /dev/null -w "%{http_code}" https://salon-gbp.ai-beauty.tokyo/api/health
+curl -s -o /dev/null -w "%{http_code}" https://salon-gbp.ai-beauty.tokyo/
 ```
 
 ---
@@ -141,7 +179,25 @@ git pull origin master
 # コンテナを再ビルドして起動
 docker compose --env-file .env -f deploy/docker-compose.prod.yml up -d --build
 
-# マイグレーション (必要な場合)
+# マイグレーション (新しいマイグレーションがある場合)
+docker compose --env-file .env -f deploy/docker-compose.prod.yml exec api alembic upgrade head
+
+# 全コンテナが healthy であることを確認
+docker compose --env-file .env -f deploy/docker-compose.prod.yml ps
+```
+
+### 特定サービスだけ再ビルド
+
+フロントエンドのみ変更した場合など:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.prod.yml up -d --build web
+```
+
+バックエンドのみ変更した場合:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.prod.yml up -d --build api worker beat
 docker compose --env-file .env -f deploy/docker-compose.prod.yml exec api alembic upgrade head
 ```
 
@@ -265,3 +321,59 @@ docker compose --env-file .env -f deploy/docker-compose.prod.yml logs api --tail
    ```
 2. `index.html` と `assets/` ディレクトリが存在することを確認
 3. ビルド時の環境変数を確認 (VITE_SUPABASE_URL 等)
+
+### web コンテナが unhealthy になる
+
+Alpine Linux では `localhost` が IPv6 (`::1`) に解決されるが、nginx は IPv4 のみでリッスンしている。
+ヘルスチェックが `http://localhost:8000/healthz` を使っている場合は `http://127.0.0.1:8000/healthz` に変更する。
+
+```bash
+# 確認方法
+docker exec salon_gbp_web wget -qO- http://127.0.0.1:8000/healthz  # → ok
+docker exec salon_gbp_web wget -qO- http://localhost:8000/healthz   # → Connection refused
+```
+
+### Google OAuth コールバックが失敗する
+
+- `GOOGLE_REDIRECT_URI` が本番ドメイン (`https://salon-gbp.ai-beauty.tokyo/api/oauth/google/callback`) になっているか確認
+- Google Cloud Console の「承認済みのリダイレクト URI」に本番URLが登録されているか確認
+
+---
+
+## 9. アーキテクチャ図
+
+```
+[Internet]
+    │
+    ▼
+[NPM Gateway] (SSL終端, app-network)
+    │
+    ▼
+[salon_gbp_web :8000] (nginx: SPA配信 + リバースプロキシ)
+    ├── /         → SPA (ビルド済み静的ファイル)
+    ├── /api/     → salon_gbp_api:8000 (FastAPI)
+    ├── /media/   → /data/media (共有Volume, 読み取り専用)
+    └── /assets/  → ビルド済みアセット (長期キャッシュ)
+
+[salon_gbp_api]    ← FastAPI + uvicorn
+[salon_gbp_worker] ← Celery worker (concurrency=2)
+[salon_gbp_beat]   ← Celery Beat (定期タスクスケジューラ)
+[salon_gbp_db]     ← PostgreSQL 16
+[salon_gbp_redis]  ← Redis 7 (Celery ブローカー)
+
+ネットワーク:
+  - app-network (外部): NPM ↔ web の通信
+  - internal (内部):    web ↔ api ↔ db/redis の通信
+```
+
+---
+
+## 10. Google OAuth リダイレクトURI の更新
+
+本番デプロイ後、Google Cloud Console でリダイレクトURIを更新する必要がある:
+
+1. [Google Cloud Console](https://console.cloud.google.com/) にアクセス
+2. **API とサービス** → **認証情報** → OAuth 2.0 クライアント ID を選択
+3. **承認済みのリダイレクト URI** に追加:
+   - `https://salon-gbp.ai-beauty.tokyo/api/oauth/google/callback`
+4. 保存
