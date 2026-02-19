@@ -24,7 +24,7 @@ const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage"));
 const AdminMonitorPage = lazy(() => import("./pages/AdminMonitorPage"));
 const AdminJobLogsPage = lazy(() => import("./pages/AdminJobLogsPage"));
 
-export function RequireSalonAdmin({ role, children }: { role: string; children: React.ReactNode }) {
+function RequireRole({ allowedRoles, role, children }: { allowedRoles: string[]; role: string; children: React.ReactNode }) {
   if (!role) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -32,10 +32,18 @@ export function RequireSalonAdmin({ role, children }: { role: string; children: 
       </div>
     );
   }
-  if (role !== "salon_admin" && role !== "super_admin") {
+  if (!allowedRoles.includes(role)) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
+}
+
+export function RequireSalonAdmin({ role, children }: { role: string; children: React.ReactNode }) {
+  return <RequireRole allowedRoles={["salon_admin", "super_admin"]} role={role}>{children}</RequireRole>;
+}
+
+export function RequireSuperAdmin({ role, children }: { role: string; children: React.ReactNode }) {
+  return <RequireRole allowedRoles={["super_admin"]} role={role}>{children}</RequireRole>;
 }
 
 function Shell() {
@@ -143,7 +151,7 @@ function Shell() {
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
-                    <Route path="/settings/gbp" element={<RequireSalonAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSalonAdmin>} />
+                    <Route path="/settings/gbp" element={<RequireSuperAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSuperAdmin>} />
                     <Route path="/settings/instagram" element={<RequireSalonAdmin role={me?.role ?? ""}><InstagramSettingsPage /></RequireSalonAdmin>} />
                     <Route path="/posts/:postId" element={<PostDetailPage />} />
                     <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />

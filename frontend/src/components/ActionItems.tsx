@@ -6,6 +6,7 @@ import type { SetupStatus } from "../hooks/useSetupStatus";
 interface ActionItemsProps {
   counts: Record<string, number>;
   setupStatus: SetupStatus;
+  role?: string;
 }
 
 interface ActionItem {
@@ -15,13 +16,15 @@ interface ActionItem {
   variant: "pink" | "violet" | "amber" | "red";
 }
 
-export default function ActionItems({ counts, setupStatus }: ActionItemsProps) {
+export default function ActionItems({ counts, setupStatus, role }: ActionItemsProps) {
   const items: ActionItem[] = [];
 
-  if (setupStatus.googleExpired) {
+  if (setupStatus.googleExpired && role) {
     items.push({
-      label: "Googleアカウントの再連携が必要です",
-      to: "/settings/gbp",
+      label: role === "super_admin"
+        ? "Googleアカウントの再連携が必要です"
+        : "Googleアカウントの再連携が必要です（管理者に連絡してください）",
+      to: role === "super_admin" ? "/settings/gbp" : "/alerts",
       variant: "red",
     });
   }

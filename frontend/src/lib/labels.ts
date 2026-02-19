@@ -306,6 +306,7 @@ export const HELP_TEXTS = {
   postApprove: "承認するとGoogleビジネスプロフィールに自動投稿されます。",
   postSkip: "スキップするとこの投稿はGBPに投稿されません。いつでも取り消せます。",
   tokenExpiry: "Googleの認証には有効期限があります。期限が切れると再連携が必要です。",
+  adminOnlyGbpConnect: "Googleアカウントの連携は管理者が行います。管理者に連絡してください。",
 } as const;
 
 export function translateError(message: string): string {

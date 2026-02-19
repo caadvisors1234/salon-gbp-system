@@ -1,13 +1,13 @@
 import React, { useState, useCallback } from "react";
 import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
-import { SETUP_LABELS } from "../lib/labels";
+import { SETUP_LABELS, HELP_TEXTS } from "../lib/labels";
 import { translateError } from "../lib/labels";
+import { useMe } from "../lib/me";
 import type { SetupStatus } from "../hooks/useSetupStatus";
 import SetupStepper from "./SetupStepper";
 import SetupLocationPicker from "./SetupLocationPicker";
 import Button from "./Button";
-import { IconCheck } from "./icons";
 
 const DISMISS_KEY = "setup_wizard_dismissed";
 
@@ -39,6 +39,8 @@ interface SetupWizardProps {
 export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
   const { session } = useAuth();
   const token = session?.access_token;
+  const { me } = useMe();
+  const isSuperAdmin = me?.role === "super_admin";
   const [dismissed, setDismissedState] = useState(() => isDismissed());
   const [igError, setIgError] = useState<string | null>(null);
 
@@ -51,26 +53,6 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
     setDismissed(false);
     setDismissedState(false);
   }, []);
-
-  // If all complete or status could not be determined, don't show wizard
-  if (status.allComplete || status.error) {
-    return null;
-  }
-
-  // If dismissed but still incomplete, show reminder banner
-  if (dismissed) {
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
-        <p className="text-sm text-amber-800">{SETUP_LABELS.reminderMessage}</p>
-        <button
-          className="whitespace-nowrap text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2"
-          onClick={handleResume}
-        >
-          {SETUP_LABELS.reminderAction}
-        </button>
-      </div>
-    );
-  }
 
   const startGoogleOAuth = async () => {
     if (!token) return;
@@ -98,6 +80,86 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
       setIgError(translateError(e instanceof Error ? e.message : String(e)));
     }
   };
+
+  // If all complete or status could not be determined, don't show wizard
+  if (status.allComplete || status.error) {
+    return null;
+  }
+
+  // For non-super_admin: Google/Location steps are managed by super_admin.
+  // Only show wizard content that salon_admin can act on (Instagram).
+  if (!isSuperAdmin) {
+    // Google or Location not done → nothing salon_admin can do
+    if (!status.googleConnected || !status.locationSelected) {
+      return (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-5 py-3">
+          <p className="text-sm text-stone-600">{HELP_TEXTS.adminOnlyGbpConnect}</p>
+        </div>
+      );
+    }
+    // Only Instagram remains — show a simple card (no stepper)
+    if (!status.instagramConnected) {
+      if (dismissed) {
+        return (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
+            <p className="text-sm text-amber-800">{SETUP_LABELS.reminderMessage}</p>
+            <button
+              className="whitespace-nowrap text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2"
+              onClick={handleResume}
+            >
+              {SETUP_LABELS.reminderAction}
+            </button>
+          </div>
+        );
+      }
+      return (
+        <div className="rounded-xl border border-stone-200 bg-white shadow-sm animate-fade-in">
+          <div className="p-5 space-y-4">
+            <div>
+              <h3 className="font-medium text-stone-900">{SETUP_LABELS.step3Title}</h3>
+              <p className="mt-1 text-sm text-stone-500">{SETUP_LABELS.step3Description}</p>
+            </div>
+            {igError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {igError}
+              </div>
+            )}
+            <Button variant="primary" onClick={startInstagramOAuth}>
+              {SETUP_LABELS.step3Button}
+            </Button>
+            <p className="text-xs text-stone-400">{SETUP_LABELS.step3Skip}</p>
+          </div>
+          <div className="border-t border-stone-100 px-5 py-3">
+            <button
+              className="text-sm text-stone-400 hover:text-stone-600 transition-colors"
+              onClick={handleDismiss}
+            >
+              {SETUP_LABELS.dismissButton}
+            </button>
+          </div>
+        </div>
+      );
+    }
+    // All done for salon_admin
+    return null;
+  }
+
+  // --- super_admin: full wizard with stepper ---
+
+  // If dismissed but still incomplete, show reminder banner
+  if (dismissed) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
+        <p className="text-sm text-amber-800">{SETUP_LABELS.reminderMessage}</p>
+        <button
+          className="whitespace-nowrap text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2"
+          onClick={handleResume}
+        >
+          {SETUP_LABELS.reminderAction}
+        </button>
+      </div>
+    );
+  }
 
   const steps = [
     { label: SETUP_LABELS.step1Title, description: SETUP_LABELS.step1Description },

@@ -25,7 +25,8 @@ export default function DashboardPage() {
   const { me } = useMe();
   const { counts } = useNavBadgeCounts();
   const setupStatus = useSetupStatusContext();
-  const isAdmin = me?.role === "salon_admin" || me?.role === "super_admin";
+  // Setup wizard is relevant for salon_admin and super_admin (staff skipped by useSetupStatus)
+  const showSetupWizard = me?.role === "salon_admin" || me?.role === "super_admin";
 
   const { data: pendingPosts, loading, error } = useApiFetch<PostListItem[]>(
     (token, signal) =>
@@ -55,7 +56,7 @@ export default function DashboardPage() {
       {error && <Alert variant="error" message={error} />}
 
       {/* Setup Wizard for admins */}
-      {isAdmin && !setupStatus.loading && (
+      {showSetupWizard && !setupStatus.loading && (
         <SetupWizard status={setupStatus} onRefetch={setupStatus.refetch} />
       )}
 
@@ -115,7 +116,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
-              {isAdmin && (
+              {me?.role === "super_admin" && (
                 <Link className="mt-3 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/settings/gbp">
                   設定を管理 →
                 </Link>
@@ -127,7 +128,7 @@ export default function DashboardPage() {
 
       {/* Action Items */}
       {!setupStatus.loading && setupStatus.allComplete && (
-        <ActionItems counts={counts} setupStatus={setupStatus} />
+        <ActionItems counts={counts} setupStatus={setupStatus} role={me?.role} />
       )}
 
       {(pendingPosts ?? []).length > 0 && (

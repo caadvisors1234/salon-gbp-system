@@ -61,7 +61,7 @@ const sections: NavSection[] = [
     title: "設定",
     items: [
       { label: "マイサロン", to: "/settings/salon", icon: <IconSettings className={iconCls} />, requireSalonAdmin: true },
-      { label: "GBP設定", to: "/settings/gbp", icon: <IconGbp className={iconCls} />, requireSalonAdmin: true },
+      { label: "GBP設定", to: "/settings/gbp", icon: <IconGbp className={iconCls} />, adminOnly: true },
       { label: "Instagram設定", to: "/settings/instagram", icon: <IconInstagram className={iconCls} />, requireSalonAdmin: true },
     ],
   },

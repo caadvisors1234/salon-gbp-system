@@ -22,7 +22,7 @@ router = APIRouter()
 def google_oauth_start(
     request: Request,
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin")),
+    user: CurrentUser = Depends(require_roles("super_admin")),
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ):
     _ = db  # reserved for future one-time-state storage

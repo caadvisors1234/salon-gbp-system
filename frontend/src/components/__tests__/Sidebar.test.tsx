@@ -101,11 +101,16 @@ describe("Sidebar", () => {
     expect(screen.queryByText("Instagram設定")).not.toBeInTheDocument();
   });
 
-  it("shows settings items for salon_admin role", () => {
+  it("shows settings items for salon_admin role (GBP設定 is super_admin only)", () => {
     renderSidebar({ role: "salon_admin" });
     expect(screen.getByText("マイサロン")).toBeInTheDocument();
-    expect(screen.getByText("GBP設定")).toBeInTheDocument();
+    expect(screen.queryByText("GBP設定")).not.toBeInTheDocument();
     expect(screen.getByText("Instagram設定")).toBeInTheDocument();
+  });
+
+  it("shows GBP設定 for super_admin role", () => {
+    renderSidebar({ role: "super_admin" });
+    expect(screen.getByText("GBP設定")).toBeInTheDocument();
   });
 
   it("calls onClose when mobile close button is clicked", async () => {

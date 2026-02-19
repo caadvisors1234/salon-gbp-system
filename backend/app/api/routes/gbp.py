@@ -36,6 +36,10 @@ def _list_locations(db: Session, salon_id: uuid.UUID) -> list[GbpLocation]:
     )
 
 
+# NOTE: Read-only endpoints remain salon_admin because useSetupStatus on the
+# dashboard needs connection/location info for all admin roles.  The response
+# schema (GbpConnectionResponse) exposes only email, status, and expiry — no
+# tokens or secrets.
 @router.get("/connection", response_model=GbpConnectionResponse)
 def get_connection(
     db: Session = Depends(db_session),
@@ -63,7 +67,7 @@ def list_locations(
 @router.get("/locations/available", response_model=list[GbpAvailableLocation])
 def list_available_locations(
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin")),
+    user: CurrentUser = Depends(require_roles("super_admin")),
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[GbpAvailableLocation]:
     salon_id = require_salon(user, x_salon_id)
@@ -97,7 +101,7 @@ def list_available_locations(
 def select_locations(
     payload: GbpLocationSelectRequest,
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin")),
+    user: CurrentUser = Depends(require_roles("super_admin")),
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[GbpLocationResponse]:
     salon_id = require_salon(user, x_salon_id)
@@ -152,7 +156,7 @@ def patch_location(
     location_db_id: uuid.UUID,
     payload: GbpLocationPatchRequest,
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin")),
+    user: CurrentUser = Depends(require_roles("super_admin")),
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[GbpLocationResponse]:
     salon_id = require_salon(user, x_salon_id)
