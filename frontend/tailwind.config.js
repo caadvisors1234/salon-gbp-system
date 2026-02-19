@@ -28,12 +28,17 @@ export default {
         spinner: {
           to: { transform: "rotate(360deg)" },
         },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.95)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
       },
       animation: {
         skeleton: "skeleton 1.8s ease-in-out infinite",
         "fade-in": "fade-in 0.2s ease-out",
         "slide-in": "slide-in 0.2s ease-out",
         spinner: "spinner 0.6s linear infinite",
+        "scale-in": "scale-in 0.2s ease-out",
       },
     },
   },

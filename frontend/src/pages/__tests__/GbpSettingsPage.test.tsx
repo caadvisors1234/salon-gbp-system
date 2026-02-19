@@ -9,16 +9,10 @@ import type { GbpConnectionResponse, GbpLocationResponse } from "../../types/api
 const mockApiFetch = vi.fn();
 const mockToast = vi.fn();
 
-vi.mock("../../lib/api", () => ({
-  apiFetch: (...args: unknown[]) => mockApiFetch(...args),
-  ApiError: class extends Error {
-    status: number;
-    constructor(s: number, st: string, d: string) {
-      super(d);
-      this.status = s;
-    }
-  },
-}));
+vi.mock("../../lib/api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../lib/api")>();
+  return { ...original, apiFetch: (...args: unknown[]) => mockApiFetch(...args) };
+});
 
 vi.mock("../../lib/auth", () => ({
   useAuth: () => ({
@@ -88,15 +82,14 @@ describe("GbpSettingsPage", () => {
     expect(screen.getByText("接続中")).toBeInTheDocument();
   });
 
-  it("displays saved locations", async () => {
+  it("displays saved locations by name", async () => {
     renderPage();
     await waitFor(() => {
       expect(screen.getByText("テストサロン渋谷店")).toBeInTheDocument();
     });
-    expect(screen.getByText("locations/123")).toBeInTheDocument();
   });
 
-  it("shows '未接続' when no connection", async () => {
+  it("shows message when no connection", async () => {
     mockApiFetch.mockImplementation((url: string) => {
       if (url.includes("/gbp/connection")) return Promise.reject(new Error("Not found"));
       if (url.includes("/gbp/locations")) return Promise.resolve([]);
@@ -104,7 +97,7 @@ describe("GbpSettingsPage", () => {
     });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("未接続")).toBeInTheDocument();
+      expect(screen.getByText("Googleアカウントが連携されていません")).toBeInTheDocument();
     });
   });
 
@@ -116,13 +109,15 @@ describe("GbpSettingsPage", () => {
     });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("ロケーションが登録されていません")).toBeInTheDocument();
+      expect(screen.getByText("店舗が登録されていません")).toBeInTheDocument();
     });
   });
 
-  it("has connect/reconnect button", async () => {
+  it("has connect button with context-aware label", async () => {
     renderPage();
-    expect(screen.getByText("接続 / 再接続")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("別のアカウントに切り替える")).toBeInTheDocument();
+    });
   });
 
   it("has refresh button for locations", async () => {
@@ -134,13 +129,13 @@ describe("GbpSettingsPage", () => {
     const user = userEvent.setup();
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("取得")).toBeInTheDocument();
+      expect(screen.getByText("店舗を取得")).toBeInTheDocument();
     });
 
     mockApiFetch.mockResolvedValueOnce([
       { account_id: "acc-2", location_id: "locations/456", location_name: "新店舗" },
     ]);
-    await user.click(screen.getByText("取得"));
+    await user.click(screen.getByText("店舗を取得"));
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(
         "/gbp/locations/available",

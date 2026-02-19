@@ -9,16 +9,10 @@ import type { PostDetail } from "../../types/api";
 const mockApiFetch = vi.fn();
 const mockToast = vi.fn();
 
-vi.mock("../../lib/api", () => ({
-  apiFetch: (...args: unknown[]) => mockApiFetch(...args),
-  ApiError: class extends Error {
-    status: number;
-    constructor(s: number, st: string, d: string) {
-      super(d);
-      this.status = s;
-    }
-  },
-}));
+vi.mock("../../lib/api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../lib/api")>();
+  return { ...original, apiFetch: (...args: unknown[]) => mockApiFetch(...args) };
+});
 
 vi.mock("../../lib/auth", () => ({
   useAuth: () => ({

@@ -12,8 +12,9 @@ import Button from "../components/Button";
 import FormField, { inputClass, selectClass, textareaClass } from "../components/FormField";
 import Alert from "../components/Alert";
 import { IconSpinner } from "../components/icons";
+import HelpIcon from "../components/HelpIcon";
 import { formatDateTime } from "../lib/format";
-import { statusLabel, postTypeLabel, translateError, CTA_TYPE_OPTIONS } from "../lib/labels";
+import { statusLabel, postTypeLabel, translateError, CTA_TYPE_OPTIONS, HELP_TEXTS } from "../lib/labels";
 import type { PostDetail } from "../types/api";
 
 export default function PostDetailPage() {
@@ -297,14 +298,17 @@ export default function PostDetailPage() {
           >
             保存
           </Button>
-          <Button
-            variant="primary"
-            loading={busy}
-            disabled={post.status !== "pending"}
-            onClick={() => action(`/posts/${post.id}/approve`)}
-          >
-            投稿
-          </Button>
+          <span className="inline-flex items-center gap-1">
+            <Button
+              variant="primary"
+              loading={busy}
+              disabled={post.status !== "pending"}
+              onClick={() => action(`/posts/${post.id}/approve`)}
+            >
+              投稿
+            </Button>
+            <HelpIcon text={HELP_TEXTS.postApprove} position="top" />
+          </span>
           <Button
             variant="secondary"
             loading={busy}
@@ -313,14 +317,17 @@ export default function PostDetailPage() {
           >
             再試行
           </Button>
-          <Button
-            variant="ghost"
-            loading={busy}
-            disabled={post.status === "posted"}
-            onClick={() => action(`/posts/${post.id}/skip`)}
-          >
-            スキップ
-          </Button>
+          <span className="inline-flex items-center gap-1">
+            <Button
+              variant="ghost"
+              loading={busy}
+              disabled={post.status === "posted"}
+              onClick={() => action(`/posts/${post.id}/skip`)}
+            >
+              スキップ
+            </Button>
+            <HelpIcon text={HELP_TEXTS.postSkip} position="top" />
+          </span>
         </div>
 
         {post.error_message && <div className="mt-4"><Alert variant="error" message={translateError(post.error_message)} /></div>}

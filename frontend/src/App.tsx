@@ -1,14 +1,14 @@
 import React, { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { MeProvider, useMe } from "./lib/me";
 import { ToastProvider, useToast } from "./lib/toast";
-import { apiFetch, getCurrentSalonId, setCurrentSalonId } from "./lib/api";
 import { NavBadgeCountsProvider } from "./hooks/useNavBadgeCounts";
+import { SetupStatusProvider } from "./hooks/SetupStatusContext";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { IconMenu, IconSpinner } from "./components/icons";
 import { translateError } from "./lib/labels";
-import type { MeResponse } from "./types/api";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
@@ -40,40 +40,11 @@ export function RequireSalonAdmin({ role, children }: { role: string; children: 
 
 function Shell() {
   const { session, loading } = useAuth();
+  const { me, currentSalonId, setCurrentSalonId } = useMe();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [currentSalonId, setCurrentSalonIdState] = useState<string | null>(() => getCurrentSalonId());
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const token = session?.access_token;
-
-  useEffect(() => {
-    if (!token) {
-      setMe(null);
-      setCurrentSalonId(null);
-      setCurrentSalonIdState(null);
-      return;
-    }
-    const ac = new AbortController();
-    apiFetch<MeResponse>("/me", { token, signal: ac.signal })
-      .then((meResp) => {
-        setMe(meResp);
-        const availableSalonIds = new Set(meResp.salon_ids);
-        const storedSalonId = getCurrentSalonId();
-        const nextSalonId = [storedSalonId, ...meResp.salon_ids].find(
-          (id): id is string => !!id && availableSalonIds.has(id),
-        ) ?? null;
-        setCurrentSalonId(nextSalonId);
-        setCurrentSalonIdState(nextSalonId);
-      })
-      .catch((e) => {
-        if (e.name === "AbortError") return;
-        setMe(null);
-        setCurrentSalonIdState(getCurrentSalonId());
-      });
-    return () => ac.abort();
-  }, [token]);
 
   // Close sidebar on route change
   useEffect(() => {
@@ -120,79 +91,78 @@ function Shell() {
 
   return (
     <NavBadgeCountsProvider>
-      <div className="min-h-screen bg-stone-50">
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-white focus:text-pink-600 focus:shadow-lg focus:rounded-lg"
-        >
-          メインコンテンツへスキップ
-        </a>
-
-        <Sidebar
-          email={me?.email ?? session?.user.email ?? ""}
-          role={me?.role ?? ""}
-          salons={me?.salons ?? []}
-          currentSalonId={currentSalonId}
-          onSalonChange={(salonId) => {
-            setCurrentSalonId(salonId);
-            setCurrentSalonIdState(salonId);
-          }}
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          onSignOut={async () => {
-            const { supabase } = await import("./lib/supabase");
-            if (supabase) {
-              await supabase.auth.signOut();
-            }
-            navigate("/login");
-          }}
-        />
-
-        {/* Mobile top bar */}
-        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-stone-200 bg-white px-4 py-3 md:hidden">
-          <button
-            className="rounded-lg p-1.5 hover:bg-stone-100"
-            aria-label="メニューを開く"
-            onClick={() => setSidebarOpen(true)}
+      <SetupStatusProvider>
+        <div className="min-h-screen bg-stone-50">
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-white focus:text-pink-600 focus:shadow-lg focus:rounded-lg"
           >
-            <IconMenu className="h-5 w-5 text-stone-600" />
-          </button>
-          <img src="/favicon-32x32.png" alt="" width={20} height={20} className="shrink-0" />
-          <span className="font-bold text-pink-600">Salon GBP</span>
-        </div>
+            メインコンテンツへスキップ
+          </a>
 
-        {/* Main content */}
-        <main id="main-content" className="md:ml-64">
-          <div key={currentSalonId ?? "no-salon"} className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
-            <ErrorBoundary resetKeys={[location.pathname, currentSalonId ?? ""]}>
-              <Suspense fallback={
-                <div className="flex items-center justify-center py-12">
-                  <IconSpinner className="h-6 w-6 text-pink-500" />
-                </div>
-              }>
-                <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
-                  <Route path="/settings/gbp" element={<RequireSalonAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSalonAdmin>} />
-                  <Route path="/settings/instagram" element={<RequireSalonAdmin role={me?.role ?? ""}><InstagramSettingsPage /></RequireSalonAdmin>} />
-                  <Route path="/posts/:postId" element={<PostDetailPage />} />
-                  <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
-                  <Route path="/posts/history" element={<PostsListPage kind="history" />} />
-                  <Route path="/uploads/pending" element={<MediaUploadsPage kind="pending" />} />
-                  <Route path="/uploads/history" element={<MediaUploadsPage kind="history" />} />
-                  <Route path="/alerts" element={<AlertsPage />} />
-                  <Route path="/admin/salons" element={<AdminSalonsPage />} />
-                  <Route path="/admin/monitor" element={<AdminMonitorPage />} />
-                  <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
-                  <Route path="/admin/users" element={<AdminUsersPage />} />
-                  <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
-                </Routes>
-              </Suspense>
-            </ErrorBoundary>
+          <Sidebar
+            email={me?.email ?? session?.user.email ?? ""}
+            role={me?.role ?? ""}
+            salons={me?.salons ?? []}
+            currentSalonId={currentSalonId}
+            onSalonChange={setCurrentSalonId}
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            onSignOut={async () => {
+              const { supabase } = await import("./lib/supabase");
+              if (supabase) {
+                await supabase.auth.signOut();
+              }
+              navigate("/login");
+            }}
+          />
+
+          {/* Mobile top bar */}
+          <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-stone-200 bg-white px-4 py-3 md:hidden">
+            <button
+              className="rounded-lg p-1.5 hover:bg-stone-100"
+              aria-label="メニューを開く"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <IconMenu className="h-5 w-5 text-stone-600" />
+            </button>
+            <img src="/favicon-32x32.png" alt="" width={20} height={20} className="shrink-0" />
+            <span className="font-bold text-pink-600">Salon GBP</span>
           </div>
-        </main>
-      </div>
+
+          {/* Main content */}
+          <main id="main-content" className="md:ml-64">
+            <div key={currentSalonId ?? "no-salon"} className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 animate-fade-in">
+              <ErrorBoundary resetKeys={[location.pathname, currentSalonId ?? ""]}>
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-12">
+                    <IconSpinner className="h-6 w-6 text-pink-500" />
+                  </div>
+                }>
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
+                    <Route path="/settings/gbp" element={<RequireSalonAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSalonAdmin>} />
+                    <Route path="/settings/instagram" element={<RequireSalonAdmin role={me?.role ?? ""}><InstagramSettingsPage /></RequireSalonAdmin>} />
+                    <Route path="/posts/:postId" element={<PostDetailPage />} />
+                    <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
+                    <Route path="/posts/history" element={<PostsListPage kind="history" />} />
+                    <Route path="/uploads/pending" element={<MediaUploadsPage kind="pending" />} />
+                    <Route path="/uploads/history" element={<MediaUploadsPage kind="history" />} />
+                    <Route path="/alerts" element={<AlertsPage />} />
+                    <Route path="/admin/salons" element={<AdminSalonsPage />} />
+                    <Route path="/admin/monitor" element={<AdminMonitorPage />} />
+                    <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
+                    <Route path="/admin/users" element={<AdminUsersPage />} />
+                    <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+          </main>
+        </div>
+      </SetupStatusProvider>
     </NavBadgeCountsProvider>
   );
 }
@@ -202,7 +172,9 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
-          <Shell />
+          <MeProvider>
+            <Shell />
+          </MeProvider>
         </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>

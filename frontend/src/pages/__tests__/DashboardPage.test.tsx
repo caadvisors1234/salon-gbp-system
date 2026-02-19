@@ -7,16 +7,10 @@ import type { MeResponse, PostListItem } from "../../types/api";
 
 // Mock apiFetch
 const mockApiFetch = vi.fn();
-vi.mock("../../lib/api", () => ({
-  apiFetch: (...args: unknown[]) => mockApiFetch(...args),
-  ApiError: class extends Error {
-    status: number;
-    constructor(s: number, st: string, d: string) {
-      super(d);
-      this.status = s;
-    }
-  },
-}));
+vi.mock("../../lib/api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../lib/api")>();
+  return { ...original, apiFetch: (...args: unknown[]) => mockApiFetch(...args) };
+});
 
 // Mock useAuth
 vi.mock("../../lib/auth", () => ({
@@ -24,17 +18,6 @@ vi.mock("../../lib/auth", () => ({
     session: { access_token: "test-token" },
     loading: false,
   }),
-}));
-
-// Mock useNavBadgeCounts
-const mockCounts = vi.fn(() => ({ counts: {} as Record<string, number>, loading: false }));
-vi.mock("../../hooks/useNavBadgeCounts", () => ({
-  useNavBadgeCounts: () => mockCounts(),
-}));
-
-// Mock toast
-vi.mock("../../lib/toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
 }));
 
 const me: MeResponse = {
@@ -45,6 +28,47 @@ const me: MeResponse = {
   salon_ids: ["s1"],
   salons: [{ id: "s1", slug: "s1", name: "Salon 1", is_active: true }],
 };
+
+// Mock useMe
+vi.mock("../../lib/me", () => ({
+  useMe: () => ({
+    me,
+    loading: false,
+    currentSalonId: "s1",
+    setCurrentSalonId: vi.fn(),
+    refetchMe: vi.fn(),
+  }),
+}));
+
+// Mock useNavBadgeCounts
+const mockCounts = vi.fn(() => ({ counts: {} as Record<string, number>, loading: false }));
+vi.mock("../../hooks/useNavBadgeCounts", () => ({
+  useNavBadgeCounts: () => mockCounts(),
+}));
+
+// Mock useSetupStatusContext — keep loading=true to prevent wizard/action items from
+// rendering and interfering with count assertions
+vi.mock("../../hooks/SetupStatusContext", () => ({
+  useSetupStatusContext: () => ({
+    loading: true,
+    error: false,
+    googleConnected: false,
+    googleEmail: null,
+    googleExpired: false,
+    locationSelected: false,
+    activeLocationName: null,
+    instagramConnected: false,
+    instagramUsername: null,
+    allComplete: false,
+    currentStep: 1,
+    refetch: vi.fn(),
+  }),
+}));
+
+// Mock toast
+vi.mock("../../lib/toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
 
 const posts: PostListItem[] = [
   {

@@ -2,33 +2,35 @@ import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import { useApiFetch } from "../hooks/useApiFetch";
+import { useMe } from "../lib/me";
+import { useSetupStatusContext } from "../hooks/SetupStatusContext";
+import { useNavBadgeCounts } from "../hooks/useNavBadgeCounts";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import Badge, { postTypeVariant } from "../components/Badge";
 import Alert from "../components/Alert";
 import { SkeletonCard } from "../components/Skeleton";
-import { IconPosts, IconMedia, IconSettings } from "../components/icons";
-import { useNavBadgeCounts } from "../hooks/useNavBadgeCounts";
+import SetupWizard from "../components/SetupWizard";
+import ActionItems from "../components/ActionItems";
+import { IconPosts, IconMedia } from "../components/icons";
 import { formatCount, formatRelative } from "../lib/format";
 import { roleLabel, postTypeLabel } from "../lib/labels";
-import type { MeResponse, PostListItem } from "../types/api";
+import type { PostListItem } from "../types/api";
 
 export default function DashboardPage() {
   useEffect(() => {
     document.title = "ダッシュボード | サロンGBP管理";
   }, []);
 
+  const { me } = useMe();
   const { counts } = useNavBadgeCounts();
+  const setupStatus = useSetupStatusContext();
+  const isAdmin = me?.role === "salon_admin" || me?.role === "super_admin";
 
-  const { data, loading, error } = useApiFetch<[MeResponse, PostListItem[]]>(
+  const { data: pendingPosts, loading, error } = useApiFetch<PostListItem[]>(
     (token, signal) =>
-      Promise.all([
-        apiFetch<MeResponse>("/me", { token, signal }),
-        apiFetch<PostListItem[]>("/posts?status=pending&limit=5", { token, signal }),
-      ]),
+      apiFetch<PostListItem[]>("/posts?status=pending&limit=5", { token, signal }),
   );
-
-  const [me, pendingPosts] = data ?? [null, []];
 
   if (loading) {
     return (
@@ -52,6 +54,12 @@ export default function DashboardPage() {
 
       {error && <Alert variant="error" message={error} />}
 
+      {/* Setup Wizard for admins */}
+      {isAdmin && !setupStatus.loading && (
+        <SetupWizard status={setupStatus} onRefetch={setupStatus.refetch} />
+      )}
+
+      {/* Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
@@ -79,28 +87,50 @@ export default function DashboardPage() {
           </Link>
         </div>
 
+        {/* Connection Status Card */}
         <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-stone-100 p-2">
-              <IconSettings className="h-5 w-5 text-stone-600" />
+            <div className="text-sm text-stone-500">接続ステータス</div>
+          </div>
+          {setupStatus.loading ? (
+            <div className="mt-3 space-y-2.5">
+              <div className="h-4 w-32 animate-skeleton rounded bg-stone-200" />
+              <div className="h-4 w-28 animate-skeleton rounded bg-stone-200" />
             </div>
-            <div className="text-sm text-stone-500">設定</div>
-          </div>
-          <div className="mt-3 space-y-1.5 text-sm">
-            <Link className="block font-medium text-pink-600 hover:text-pink-700" to="/settings/salon">
-              マイサロン
-            </Link>
-            <Link className="block font-medium text-pink-600 hover:text-pink-700" to="/settings/gbp">
-              GBP設定
-            </Link>
-            <Link className="block font-medium text-pink-600 hover:text-pink-700" to="/settings/instagram">
-              Instagram設定
-            </Link>
-          </div>
+          ) : (
+            <>
+              <div className="mt-3 space-y-2.5">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${setupStatus.googleConnected ? "bg-emerald-500" : "bg-stone-300"}`} />
+                  <span className="text-stone-600">Google</span>
+                  <span className={`ml-auto text-xs font-medium ${setupStatus.googleConnected ? "text-emerald-600" : "text-stone-400"}`}>
+                    {setupStatus.googleConnected ? "接続中" : setupStatus.googleExpired ? "期限切れ" : "未接続"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${setupStatus.instagramConnected ? "bg-emerald-500" : "bg-stone-300"}`} />
+                  <span className="text-stone-600">Instagram</span>
+                  <span className={`ml-auto text-xs font-medium ${setupStatus.instagramConnected ? "text-emerald-600" : "text-stone-400"}`}>
+                    {setupStatus.instagramConnected ? "接続中" : "未接続"}
+                  </span>
+                </div>
+              </div>
+              {isAdmin && (
+                <Link className="mt-3 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/settings/gbp">
+                  設定を管理 →
+                </Link>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {pendingPosts.slice(0, 5).length > 0 && (
+      {/* Action Items */}
+      {!setupStatus.loading && setupStatus.allComplete && (
+        <ActionItems counts={counts} setupStatus={setupStatus} />
+      )}
+
+      {(pendingPosts ?? []).length > 0 && (
         <Card
           title="承認待ち投稿"
           action={
@@ -110,7 +140,7 @@ export default function DashboardPage() {
           }
         >
           <ul className="-mx-5 -mb-4 divide-y divide-stone-100">
-            {pendingPosts.slice(0, 5).map((p) => (
+            {(pendingPosts ?? []).slice(0, 5).map((p) => (
               <li key={p.id}>
                 <Link to={`/posts/${p.id}`} className="flex items-start gap-3 px-5 py-3 hover:bg-stone-50 transition-colors">
                   <Badge variant={postTypeVariant(p.post_type)}>{postTypeLabel(p.post_type)}</Badge>

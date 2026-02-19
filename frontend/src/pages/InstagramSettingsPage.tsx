@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { useMe } from "../lib/me";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
 import { validate, required } from "../lib/validation";
@@ -10,8 +11,9 @@ import Badge from "../components/Badge";
 import Button from "../components/Button";
 import FormField, { inputClass, selectClass, checkboxClass } from "../components/FormField";
 import Alert from "../components/Alert";
+import HelpIcon from "../components/HelpIcon";
 import { IconTrash } from "../components/icons";
-import { translateError } from "../lib/labels";
+import { translateError, HELP_TEXTS } from "../lib/labels";
 import type { InstagramAccountResponse } from "../types/api";
 
 const INITIAL_FORM = {
@@ -27,6 +29,7 @@ const INITIAL_FORM = {
 export default function InstagramSettingsPage() {
   const { session } = useAuth();
   const token = session?.access_token;
+  const { me } = useMe();
   const { toast } = useToast();
   const [search] = useSearchParams();
   const oauth = search.get("oauth");
@@ -36,6 +39,8 @@ export default function InstagramSettingsPage() {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const isSuperAdmin = me?.role === "super_admin";
 
   useEffect(() => {
     document.title = "Instagram設定 | サロンGBP管理";
@@ -71,7 +76,7 @@ export default function InstagramSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Instagram設定" description="Instagramアカウントを連携・登録" />
+      <PageHeader title="Instagram設定" description="Instagramアカウントの連携・管理" />
 
       {oauth === "success" && <Alert variant="success" message={`Instagram連携完了。追加/更新: ${added ?? "0"}件`} />}
       {oauth === "error" && <Alert variant="error" message="Instagram連携に失敗しました" />}
@@ -79,7 +84,10 @@ export default function InstagramSettingsPage() {
 
       {/* OAuth Connect */}
       <Card title="Instagramアカウント連携">
-        <div className="flex flex-wrap items-center gap-3">
+        <p className="mb-4 text-sm text-stone-500">
+          {HELP_TEXTS.instagramConnect}
+        </p>
+        <div className="space-y-3">
           <Button
             variant="primary"
             className="whitespace-nowrap"
@@ -96,87 +104,100 @@ export default function InstagramSettingsPage() {
               }
             }}
           >
-            公式アカウント接続
+            Instagramを連携する
           </Button>
-          <Button
-            variant="secondary"
-            className="whitespace-nowrap"
-            onClick={async () => {
+
+          <details className="text-sm">
+            <summary className="cursor-pointer text-stone-500 hover:text-stone-700">
+              スタッフ個人アカウントを接続する場合はこちら
+            </summary>
+            <div className="mt-2 space-y-2 pl-3 border-l-2 border-stone-200">
+              <p className="text-xs text-stone-500">{HELP_TEXTS.instagramStaff}</p>
+              <Button
+                variant="secondary"
+                className="whitespace-nowrap"
+                onClick={async () => {
+                  if (!token) return;
+                  try {
+                    const res = await apiFetch<{ redirect_url: string }>(
+                      "/oauth/meta/start?account_type=staff",
+                      { token, headers: { "x-requested-with": "fetch" } },
+                    );
+                    window.location.href = res.redirect_url;
+                  } catch (e: unknown) {
+                    setErr(translateError(e instanceof Error ? e.message : String(e)));
+                  }
+                }}
+              >
+                スタッフアカウントを接続
+              </Button>
+            </div>
+          </details>
+        </div>
+        {isSuperAdmin && (
+          <p className="mt-3 text-xs text-stone-400">本番環境ではMeta社の審査が必要です</p>
+        )}
+      </Card>
+
+      {/* Manual Add — super_admin only */}
+      {isSuperAdmin && (
+        <Card title="手動追加（開発用）">
+          <form
+            className="grid gap-4 sm:grid-cols-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!validateManualForm()) return;
               if (!token) return;
+              setErr(null);
               try {
-                const res = await apiFetch<{ redirect_url: string }>(
-                  "/oauth/meta/start?account_type=staff",
-                  { token, headers: { "x-requested-with": "fetch" } },
-                );
-                window.location.href = res.redirect_url;
-              } catch (e: unknown) {
-                setErr(translateError(e instanceof Error ? e.message : String(e)));
+                await apiFetch<InstagramAccountResponse>("/instagram/accounts", {
+                  method: "POST",
+                  token,
+                  body: JSON.stringify({
+                    ...form,
+                    staff_name: form.staff_name || null,
+                  }),
+                });
+                setForm(INITIAL_FORM);
+                setFormErrors({});
+                toast("success", "アカウントを追加しました");
+                await load();
+              } catch (e2: unknown) {
+                setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
               }
             }}
           >
-            スタッフ接続
-          </Button>
-        </div>
-        <p className="mt-3 text-xs text-stone-400">本番環境ではMeta社の審査が必要です</p>
-      </Card>
-
-      {/* Manual Add */}
-      <Card title="手動追加（開発用）">
-        <form
-          className="grid gap-4 sm:grid-cols-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!validateManualForm()) return;
-            if (!token) return;
-            setErr(null);
-            try {
-              await apiFetch<InstagramAccountResponse>("/instagram/accounts", {
-                method: "POST",
-                token,
-                body: JSON.stringify({
-                  ...form,
-                  staff_name: form.staff_name || null,
-                }),
-              });
-              setForm(INITIAL_FORM);
-              setFormErrors({});
-              toast("success", "アカウントを追加しました");
-              await load();
-            } catch (e2: unknown) {
-              setErr(translateError(e2 instanceof Error ? e2.message : String(e2)));
-            }
-          }}
-        >
-          <FormField label="Instagram ユーザーID" error={formErrors.ig_user_id}>
-            <input className={inputClass} value={form.ig_user_id} onChange={(e) => setForm({ ...form, ig_user_id: e.target.value })} />
-          </FormField>
-          <FormField label="Instagram ユーザー名" error={formErrors.ig_username}>
-            <input className={inputClass} value={form.ig_username} onChange={(e) => setForm({ ...form, ig_username: e.target.value })} />
-          </FormField>
-          <FormField label="アカウント種別">
-            <select className={selectClass} value={form.account_type} onChange={(e) => setForm({ ...form, account_type: e.target.value })}>
-              <option value="official">公式</option>
-              <option value="staff">スタッフ</option>
-            </select>
-          </FormField>
-          <FormField label="スタッフ名（任意）">
-            <input className={inputClass} value={form.staff_name} onChange={(e) => setForm({ ...form, staff_name: e.target.value })} />
-          </FormField>
-          <FormField label="アクセストークン（長期）" className="sm:col-span-2" error={formErrors.access_token}>
-            <input type="password" className={inputClass} value={form.access_token} onChange={(e) => setForm({ ...form, access_token: e.target.value })} />
-          </FormField>
-          <FormField label="有効日数">
-            <input className={inputClass} value={form.expires_in_days} onChange={(e) => setForm({ ...form, expires_in_days: Number(e.target.value) })} type="number" min={1} max={365} />
-          </FormField>
-          <label className="flex items-center gap-2 text-sm text-stone-700 sm:col-span-2">
-            <input type="checkbox" className={checkboxClass} checked={form.sync_hashtags} onChange={(e) => setForm({ ...form, sync_hashtags: e.target.checked })} />
-            ハッシュタグ同期
-          </label>
-          <div className="sm:col-span-2">
-            <Button variant="primary" type="submit">追加</Button>
-          </div>
-        </form>
-      </Card>
+            <FormField label="Instagram ユーザーID" error={formErrors.ig_user_id}>
+              <input className={inputClass} value={form.ig_user_id} onChange={(e) => setForm({ ...form, ig_user_id: e.target.value })} />
+            </FormField>
+            <FormField label="Instagram ユーザー名" error={formErrors.ig_username}>
+              <input className={inputClass} value={form.ig_username} onChange={(e) => setForm({ ...form, ig_username: e.target.value })} />
+            </FormField>
+            <FormField label="アカウント種別">
+              <select className={selectClass} value={form.account_type} onChange={(e) => setForm({ ...form, account_type: e.target.value })}>
+                <option value="official">公式</option>
+                <option value="staff">スタッフ</option>
+              </select>
+            </FormField>
+            <FormField label="スタッフ名（任意）">
+              <input className={inputClass} value={form.staff_name} onChange={(e) => setForm({ ...form, staff_name: e.target.value })} />
+            </FormField>
+            <FormField label="アクセストークン（長期）" className="sm:col-span-2" error={formErrors.access_token}>
+              <input type="password" className={inputClass} value={form.access_token} onChange={(e) => setForm({ ...form, access_token: e.target.value })} />
+            </FormField>
+            <FormField label="有効日数">
+              <input className={inputClass} value={form.expires_in_days} onChange={(e) => setForm({ ...form, expires_in_days: Number(e.target.value) })} type="number" min={1} max={365} />
+            </FormField>
+            <label className="flex items-center gap-2 text-sm text-stone-700 sm:col-span-2">
+              <input type="checkbox" className={checkboxClass} checked={form.sync_hashtags} onChange={(e) => setForm({ ...form, sync_hashtags: e.target.checked })} />
+              ハッシュタグ同期
+            </label>
+            <div className="sm:col-span-2">
+              <Button variant="primary" type="submit">追加</Button>
+            </div>
+          </form>
+        </Card>
+      )}
 
       {/* Accounts Table */}
       <Card title="登録済みアカウント">
@@ -187,9 +208,16 @@ export default function InstagramSettingsPage() {
                 <tr className="border-b border-stone-100 bg-stone-50/50">
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">有効</th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ユーザー名</th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ユーザーID</th>
+                  {isSuperAdmin && (
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ユーザーID</th>
+                  )}
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">種別</th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">ハッシュタグ</th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                    <span className="inline-flex items-center gap-1">
+                      ハッシュタグ
+                      <HelpIcon text={HELP_TEXTS.syncHashtags} position="bottom" />
+                    </span>
+                  </th>
                   <th scope="col" className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -221,7 +249,9 @@ export default function InstagramSettingsPage() {
                       />
                     </td>
                     <td className="px-4 py-3 font-medium text-stone-800">{a.ig_username}</td>
-                    <td className="px-4 py-3 text-stone-500 text-xs">{a.ig_user_id}</td>
+                    {isSuperAdmin && (
+                      <td className="px-4 py-3 text-stone-500 text-xs">{a.ig_user_id}</td>
+                    )}
                     <td className="px-4 py-3">
                       <Badge variant={a.account_type === "official" ? "primary" : "default"}>{a.account_type === "official" ? "公式" : "スタッフ"}</Badge>
                     </td>

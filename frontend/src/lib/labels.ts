@@ -272,6 +272,42 @@ const PATTERN_ERROR_MAP: Array<[RegExp, string]> = [
   [/not found$/i, "データが見つかりません"],
 ];
 
+// --- Setup wizard labels ---
+
+export const SETUP_LABELS = {
+  wizardTitle: "初期設定をはじめましょう",
+  wizardDescription: "3つのステップで設定を完了すると、投稿の管理を始められます。",
+  step1Title: "Googleアカウント連携",
+  step1Description: "Googleビジネスプロフィールに投稿するために、Googleアカウントを連携します。",
+  step1Button: "Googleアカウントを連携する",
+  step1Done: "連携済み",
+  step2Title: "店舗を選択",
+  step2Description: "投稿先のGoogleビジネスプロフィールの店舗を選びます。",
+  step2Button: "この店舗に決定",
+  step2Done: "選択済み",
+  step3Title: "Instagram連携",
+  step3Description: "Instagramの投稿を自動で取り込むために、アカウントを連携します。",
+  step3Button: "Instagramを連携する",
+  step3Skip: "あとから設定できます",
+  step3Done: "連携済み",
+  dismissButton: "あとで設定する",
+  reminderMessage: "初期設定がまだ完了していません。",
+  reminderAction: "設定を続ける",
+  allComplete: "すべて完了！",
+  allCompleteDescription: "初期設定が完了しました。投稿の承認を始めましょう。",
+} as const;
+
+export const HELP_TEXTS = {
+  googleConnect: "Googleビジネスプロフィールに投稿するには、Googleアカウントとの連携が必要です。連携すると、お店の情報や投稿をGoogleマップ上で管理できるようになります。",
+  locationSelect: "連携したGoogleアカウントに紐づく店舗から、投稿先を選択します。",
+  instagramConnect: "サロンの公式Instagramアカウントを連携すると、投稿内容を自動で取り込み、Googleビジネスプロフィールへの投稿候補として表示します。",
+  instagramStaff: "スタッフ個人のInstagramアカウントからも投稿を取り込めます。",
+  syncHashtags: "オンにすると、Instagram投稿のハッシュタグもGBP投稿に含めます。",
+  postApprove: "承認するとGoogleビジネスプロフィールに自動投稿されます。",
+  postSkip: "スキップするとこの投稿はGBPに投稿されません。いつでも取り消せます。",
+  tokenExpiry: "Googleの認証には有効期限があります。期限が切れると再連携が必要です。",
+} as const;
+
 export function translateError(message: string): string {
   if (!message) return message;
 
