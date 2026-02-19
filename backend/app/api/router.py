@@ -2,7 +2,20 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import admin, alerts, gbp, health, instagram, me, media_uploads, nav_counts, oauth_google, oauth_meta, posts, salon
+from app.api.routes import (
+    admin,
+    alerts,
+    gbp,
+    health,
+    instagram,
+    me,
+    media_uploads,
+    nav_counts,
+    oauth_google,
+    oauth_meta,
+    posts,
+    salon,
+)
 
 
 api_router = APIRouter()
