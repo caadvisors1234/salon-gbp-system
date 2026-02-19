@@ -127,7 +127,8 @@ export default function Sidebar({
   const nav = (
     <nav className="flex h-full flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-        <Link to="/dashboard" className="text-lg font-bold text-pink-600" onClick={onClose}>
+        <Link to="/dashboard" className="flex items-center gap-2 text-lg font-bold text-pink-600" onClick={onClose}>
+          <img src="/favicon-32x32.png" alt="" width={24} height={24} className="shrink-0" />
           Salon GBP
         </Link>
         <button className="md:hidden rounded-lg p-1 hover:bg-stone-100" aria-label="メニューを閉じる" onClick={onClose}>

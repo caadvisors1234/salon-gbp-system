@@ -157,6 +157,7 @@ function Shell() {
           >
             <IconMenu className="h-5 w-5 text-stone-600" />
           </button>
+          <img src="/favicon-32x32.png" alt="" width={20} height={20} className="shrink-0" />
           <span className="font-bold text-pink-600">Salon GBP</span>
         </div>
 
