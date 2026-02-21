@@ -105,12 +105,13 @@ describe("Sidebar", () => {
     renderSidebar({ role: "salon_admin" });
     expect(screen.getByText("マイサロン")).toBeInTheDocument();
     expect(screen.queryByText("GBPマッピング")).not.toBeInTheDocument();
-    expect(screen.getByText("Instagram設定")).toBeInTheDocument();
+    expect(screen.queryByText("Instagram設定")).not.toBeInTheDocument();
   });
 
   it("shows GBPマッピング for super_admin role", () => {
     renderSidebar({ role: "super_admin" });
     expect(screen.getByText("GBPマッピング")).toBeInTheDocument();
+    expect(screen.queryByText("Instagram設定")).not.toBeInTheDocument();
   });
 
   it("calls onClose when mobile close button is clicked", async () => {

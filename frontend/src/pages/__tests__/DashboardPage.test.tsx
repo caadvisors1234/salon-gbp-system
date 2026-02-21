@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import DashboardPage from "../DashboardPage";
 import type { MeResponse, PostListItem } from "../../types/api";
+import type { SetupStatus } from "../../hooks/useSetupStatus";
 
 // Mock apiFetch
 const mockApiFetch = vi.fn();
@@ -46,10 +47,10 @@ vi.mock("../../hooks/useNavBadgeCounts", () => ({
   useNavBadgeCounts: () => mockCounts(),
 }));
 
-// Mock useSetupStatusContext — keep loading=true to prevent wizard/action items from
-// rendering and interfering with count assertions
-vi.mock("../../hooks/SetupStatusContext", () => ({
-  useSetupStatusContext: () => ({
+type SetupStatusContextValue = SetupStatus & { refetch: () => void };
+
+function makeSetupStatus(overrides: Partial<SetupStatusContextValue> = {}): SetupStatusContextValue {
+  return {
     loading: true,
     error: false,
     googleConnected: false,
@@ -63,7 +64,15 @@ vi.mock("../../hooks/SetupStatusContext", () => ({
     allComplete: false,
     currentStep: 1,
     refetch: vi.fn(),
-  }),
+    ...overrides,
+  };
+}
+
+const mockSetupStatus = vi.fn<() => SetupStatusContextValue>(() => makeSetupStatus());
+
+// Mock useSetupStatusContext
+vi.mock("../../hooks/SetupStatusContext", () => ({
+  useSetupStatusContext: () => mockSetupStatus(),
 }));
 
 // Mock toast
@@ -100,6 +109,9 @@ describe("DashboardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCounts.mockReturnValue({ counts: {}, loading: false });
+    // Keep loading=true by default to prevent wizard/action items from
+    // rendering and interfering with count assertions.
+    mockSetupStatus.mockReturnValue(makeSetupStatus());
   });
 
   function mockApi() {
@@ -161,5 +173,31 @@ describe("DashboardPage", () => {
       expect(cards.length).toBeGreaterThanOrEqual(1);
     });
     expect(screen.getByText("Test post summary for the dashboard display")).toBeInTheDocument();
+  });
+
+  it("hides Instagram status row in connection card", async () => {
+    mockSetupStatus.mockReturnValue(makeSetupStatus({
+      loading: false,
+      error: false,
+      googleConnected: true,
+      googleConnectedGlobally: true,
+      googleEmail: "admin@salon.jp",
+      googleExpired: false,
+      locationSelected: true,
+      activeLocationName: "Salon 1",
+      instagramConnected: false,
+      instagramUsername: null,
+      allComplete: true,
+      currentStep: 2,
+      refetch: vi.fn(),
+    }));
+    mockApi();
+
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("接続ステータス")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Google")).toBeInTheDocument();
+    expect(screen.queryByText("Instagram")).not.toBeInTheDocument();
   });
 });

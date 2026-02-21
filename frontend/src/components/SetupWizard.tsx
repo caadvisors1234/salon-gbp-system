@@ -3,6 +3,7 @@ import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { SETUP_LABELS, HELP_TEXTS } from "../lib/labels";
 import { translateError } from "../lib/labels";
+import { SHOW_INSTAGRAM_UI } from "../lib/featureFlags";
 import { useMe } from "../lib/me";
 import type { SetupStatus } from "../hooks/useSetupStatus";
 import SetupStepper from "./SetupStepper";
@@ -87,7 +88,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
   }
 
   // For non-super_admin: Google/Location steps are managed by super_admin.
-  // Only show wizard content that salon_admin can act on (Instagram).
+  // When Instagram UI is enabled, salon_admin can only act on Instagram step.
   if (!isSuperAdmin) {
     // Google or Location not done → nothing salon_admin can do
     if (!status.googleConnected || !status.locationSelected) {
@@ -98,7 +99,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
       );
     }
     // Only Instagram remains — show a simple card (no stepper)
-    if (!status.instagramConnected) {
+    if (SHOW_INSTAGRAM_UI && !status.instagramConnected) {
       if (dismissed) {
         return (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
@@ -161,23 +162,29 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
     );
   }
 
-  const steps = [
-    { label: SETUP_LABELS.step1Title, description: SETUP_LABELS.step1Description },
-    { label: SETUP_LABELS.step2Title, description: SETUP_LABELS.step2Description },
-    { label: SETUP_LABELS.step3Title, description: SETUP_LABELS.step3Description },
-  ];
+  const steps = SHOW_INSTAGRAM_UI
+    ? [
+      { label: SETUP_LABELS.step1Title, description: SETUP_LABELS.step1Description },
+      { label: SETUP_LABELS.step2Title, description: SETUP_LABELS.step2Description },
+      { label: SETUP_LABELS.step3Title, description: SETUP_LABELS.step3Description },
+    ]
+    : [
+      { label: SETUP_LABELS.step1Title, description: SETUP_LABELS.step1Description },
+      { label: SETUP_LABELS.step2Title, description: SETUP_LABELS.step2Description },
+    ];
 
-  const completedSteps = [
-    status.googleConnectedGlobally,
-    status.locationSelected,
-    status.instagramConnected,
-  ];
+  const completedSteps = SHOW_INSTAGRAM_UI
+    ? [status.googleConnectedGlobally, status.locationSelected, status.instagramConnected]
+    : [status.googleConnectedGlobally, status.locationSelected];
+  const wizardDescription = SHOW_INSTAGRAM_UI
+    ? SETUP_LABELS.wizardDescription
+    : "2つのステップで設定を完了すると、投稿の管理を始められます。";
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white shadow-sm animate-fade-in">
       <div className="border-b border-stone-100 px-5 py-4">
         <h2 className="text-lg font-bold text-stone-900">{SETUP_LABELS.wizardTitle}</h2>
-        <p className="mt-1 text-sm text-stone-500">{SETUP_LABELS.wizardDescription}</p>
+        <p className="mt-1 text-sm text-stone-500">{wizardDescription}</p>
       </div>
 
       <div className="grid gap-6 p-5 md:grid-cols-[200px_1fr]">
@@ -218,7 +225,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
             </div>
           )}
 
-          {status.currentStep === 3 && status.googleConnectedGlobally && status.locationSelected && !status.instagramConnected && (
+          {SHOW_INSTAGRAM_UI && status.currentStep === 3 && status.googleConnectedGlobally && status.locationSelected && !status.instagramConnected && (
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-stone-900">{SETUP_LABELS.step3Title}</h3>

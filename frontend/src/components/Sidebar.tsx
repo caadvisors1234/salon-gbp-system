@@ -19,6 +19,7 @@ import {
   IconLogout,
   IconX,
 } from "./icons";
+import { SHOW_INSTAGRAM_UI } from "../lib/featureFlags";
 
 type NavItem = {
   label: string;
@@ -62,7 +63,9 @@ const sections: NavSection[] = [
     items: [
       { label: "マイサロン", to: "/settings/salon", icon: <IconSettings className={iconCls} />, requireSalonAdmin: true },
       { label: "GBPマッピング", to: "/admin/gbp-mapping", icon: <IconGbp className={iconCls} />, adminOnly: true },
-      { label: "Instagram設定", to: "/settings/instagram", icon: <IconInstagram className={iconCls} />, requireSalonAdmin: true },
+      ...(SHOW_INSTAGRAM_UI
+        ? [{ label: "Instagram設定", to: "/settings/instagram", icon: <IconInstagram className={iconCls} />, requireSalonAdmin: true }]
+        : []),
     ],
   },
   {

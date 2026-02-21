@@ -15,6 +15,7 @@ import ActionItems from "../components/ActionItems";
 import { IconPosts, IconMedia } from "../components/icons";
 import { formatCount, formatRelative } from "../lib/format";
 import { roleLabel, postTypeLabel } from "../lib/labels";
+import { SHOW_INSTAGRAM_UI } from "../lib/featureFlags";
 import type { PostListItem } from "../types/api";
 
 export default function DashboardPage() {
@@ -108,13 +109,15 @@ export default function DashboardPage() {
                     {setupStatus.googleConnected ? "接続中" : setupStatus.googleExpired ? "期限切れ" : "未接続"}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${setupStatus.instagramConnected ? "bg-emerald-500" : "bg-stone-300"}`} />
-                  <span className="text-stone-600">Instagram</span>
-                  <span className={`ml-auto text-xs font-medium ${setupStatus.instagramConnected ? "text-emerald-600" : "text-stone-400"}`}>
-                    {setupStatus.instagramConnected ? "接続中" : "未接続"}
-                  </span>
-                </div>
+                {SHOW_INSTAGRAM_UI && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className={`inline-block h-2.5 w-2.5 rounded-full ${setupStatus.instagramConnected ? "bg-emerald-500" : "bg-stone-300"}`} />
+                    <span className="text-stone-600">Instagram</span>
+                    <span className={`ml-auto text-xs font-medium ${setupStatus.instagramConnected ? "text-emerald-600" : "text-stone-400"}`}>
+                      {setupStatus.instagramConnected ? "接続中" : "未接続"}
+                    </span>
+                  </div>
+                )}
               </div>
               {me?.role === "super_admin" && (
                 <Link className="mt-3 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/settings/gbp">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "../lib/auth";
 import { useMe } from "../lib/me";
 import { apiFetch, SALON_CHANGED_EVENT } from "../lib/api";
+import { SHOW_INSTAGRAM_UI } from "../lib/featureFlags";
 import type { GbpConnectionResponse, GbpLocationResponse, InstagramAccountResponse } from "../types/api";
 
 export interface SetupStatus {
@@ -96,7 +97,7 @@ export function useSetupStatus(skip = false): SetupStatus & { refetch: () => voi
       // Step progression uses the global check so super_admin can skip to location selection
       let currentStep: 1 | 2 | 3 = 1;
       if (googleConnectedGlobally) currentStep = 2;
-      if (googleConnectedGlobally && locationSelected) currentStep = 3;
+      if (SHOW_INSTAGRAM_UI && googleConnectedGlobally && locationSelected) currentStep = 3;
 
       setStatus({
         loading: false,
@@ -109,7 +110,9 @@ export function useSetupStatus(skip = false): SetupStatus & { refetch: () => voi
         activeLocationName,
         instagramConnected,
         instagramUsername,
-        allComplete: googleConnected && locationSelected && instagramConnected,
+        allComplete: SHOW_INSTAGRAM_UI
+          ? googleConnected && locationSelected && instagramConnected
+          : googleConnected && locationSelected,
         currentStep,
       });
     });
