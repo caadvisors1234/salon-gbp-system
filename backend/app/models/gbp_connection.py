@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, String, Text, UniqueConstraint
 from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.mixins import SalonScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 
-class GbpConnection(Base, UUIDPrimaryKeyMixin, TimestampMixin, SalonScopedMixin):
+class GbpConnection(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "gbp_connections"
+    __table_args__ = (
+        UniqueConstraint("google_account_email", name="uq_gbp_connections_google_email"),
+    )
 
     google_account_email: Mapped[str] = mapped_column(String(255), nullable=False, server_default="")
 

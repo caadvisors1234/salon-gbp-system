@@ -92,10 +92,31 @@ export interface SalonResponse {
 // --- GBP ---
 export interface GbpConnectionResponse {
   id: string;
-  salon_id: string;
   google_account_email: string;
   token_expires_at: string;
   status: string;
+}
+
+export interface GbpConnectionListItem {
+  id: string;
+  google_account_email: string;
+  token_expires_at: string;
+  status: string;
+  location_count: number;
+}
+
+export interface BulkMappingLocationInfo {
+  id: string;
+  location_name: string | null;
+  account_id: string;
+  location_id: string;
+  gbp_connection_id: string;
+}
+
+export interface BulkMappingItem {
+  salon_id: string;
+  salon_name: string;
+  gbp_location: BulkMappingLocationInfo | null;
 }
 
 export interface GbpLocationResponse {

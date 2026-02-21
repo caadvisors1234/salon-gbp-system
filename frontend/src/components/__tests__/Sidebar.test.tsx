@@ -97,20 +97,20 @@ describe("Sidebar", () => {
   it("hides settings items for staff role", () => {
     renderSidebar({ role: "staff" });
     expect(screen.queryByText("マイサロン")).not.toBeInTheDocument();
-    expect(screen.queryByText("GBP設定")).not.toBeInTheDocument();
+    expect(screen.queryByText("GBPマッピング")).not.toBeInTheDocument();
     expect(screen.queryByText("Instagram設定")).not.toBeInTheDocument();
   });
 
-  it("shows settings items for salon_admin role (GBP設定 is super_admin only)", () => {
+  it("shows settings items for salon_admin role (GBPマッピング is super_admin only)", () => {
     renderSidebar({ role: "salon_admin" });
     expect(screen.getByText("マイサロン")).toBeInTheDocument();
-    expect(screen.queryByText("GBP設定")).not.toBeInTheDocument();
+    expect(screen.queryByText("GBPマッピング")).not.toBeInTheDocument();
     expect(screen.getByText("Instagram設定")).toBeInTheDocument();
   });
 
-  it("shows GBP設定 for super_admin role", () => {
+  it("shows GBPマッピング for super_admin role", () => {
     renderSidebar({ role: "super_admin" });
-    expect(screen.getByText("GBP設定")).toBeInTheDocument();
+    expect(screen.getByText("GBPマッピング")).toBeInTheDocument();
   });
 
   it("calls onClose when mobile close button is clicked", async () => {

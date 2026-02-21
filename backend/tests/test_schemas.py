@@ -101,14 +101,14 @@ class TestGbpConnectionResponse:
     def test_valid_status(self):
         for s in ("active", "expired", "revoked"):
             GbpConnectionResponse(
-                id=_UUID, salon_id=_UUID, google_account_email="a@b.com",
+                id=_UUID, google_account_email="a@b.com",
                 token_expires_at=_NOW, status=s,
             )
 
     def test_invalid_status(self):
         with pytest.raises(ValidationError):
             GbpConnectionResponse(
-                id=_UUID, salon_id=_UUID, google_account_email="a@b.com",
+                id=_UUID, google_account_email="a@b.com",
                 token_expires_at=_NOW, status="disabled",
             )
 

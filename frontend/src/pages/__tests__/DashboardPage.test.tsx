@@ -53,6 +53,7 @@ vi.mock("../../hooks/SetupStatusContext", () => ({
     loading: true,
     error: false,
     googleConnected: false,
+    googleConnectedGlobally: false,
     googleEmail: null,
     googleExpired: false,
     locationSelected: false,

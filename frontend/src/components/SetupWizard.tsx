@@ -168,7 +168,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
   ];
 
   const completedSteps = [
-    status.googleConnected,
+    status.googleConnectedGlobally,
     status.locationSelected,
     status.instagramConnected,
   ];
@@ -186,7 +186,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
 
         {/* Active step content */}
         <div className="min-h-[120px]">
-          {status.currentStep === 1 && !status.googleConnected && (
+          {status.currentStep === 1 && !status.googleConnectedGlobally && (
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-stone-900">{SETUP_LABELS.step1Title}</h3>
@@ -203,7 +203,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
             </div>
           )}
 
-          {status.currentStep === 2 && status.googleConnected && !status.locationSelected && (
+          {status.currentStep === 2 && status.googleConnectedGlobally && !status.locationSelected && (
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-stone-900">{SETUP_LABELS.step2Title}</h3>
@@ -218,7 +218,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
             </div>
           )}
 
-          {status.currentStep === 3 && status.googleConnected && status.locationSelected && !status.instagramConnected && (
+          {status.currentStep === 3 && status.googleConnectedGlobally && status.locationSelected && !status.instagramConnected && (
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-stone-900">{SETUP_LABELS.step3Title}</h3>

@@ -3,11 +3,11 @@ from __future__ import annotations
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, db_session, require_roles, require_salon
+from app.api.deps import CurrentUser, db_session, require_roles
 from app.core.config import get_settings
 from app.core.crypto import encrypt_str
 from app.core.oauth_state import OAuthStateError, create_state, load_state
@@ -23,13 +23,11 @@ def google_oauth_start(
     request: Request,
     db: Session = Depends(db_session),
     user: CurrentUser = Depends(require_roles("super_admin")),
-    x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ):
     _ = db  # reserved for future one-time-state storage
     settings = get_settings()
-    salon_id = require_salon(user, x_salon_id)
     state = create_state(
-        {"salon_id": str(salon_id), "user_id": str(user.id), "nonce": uuid.uuid4().hex},
+        {"user_id": str(user.id), "nonce": uuid.uuid4().hex},
         settings.oauth_state_secret,
     )
     url = build_authorize_url(settings, state=state)
@@ -49,15 +47,16 @@ def google_oauth_callback(
     settings = get_settings()
     redirect_base = settings.app_public_base_url.rstrip("/")
     if error:
-        return RedirectResponse(url=f"{redirect_base}/settings/gbp?oauth=error&reason={quote(error, safe='')}")
+        return RedirectResponse(url=f"{redirect_base}/admin/gbp-mapping?oauth=error&reason={quote(error, safe='')}")
     if not code or not state:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing code/state")
 
     try:
         data = load_state(state, settings.oauth_state_secret)
     except OAuthStateError:
-        return RedirectResponse(url=f"{redirect_base}/settings/gbp?oauth=error&reason=state")
-    salon_id = uuid.UUID(str(data["salon_id"]))
+        return RedirectResponse(url=f"{redirect_base}/admin/gbp-mapping?oauth=error&reason=state")
+
+    _ = data  # user_id and nonce validated by load_state
 
     token = exchange_code_for_token(settings, code=code)
     email = ""
@@ -66,17 +65,26 @@ def google_oauth_callback(
     except Exception:
         email = ""
 
+    if not email:
+        return RedirectResponse(
+            url=f"{redirect_base}/admin/gbp-mapping?oauth=error&reason=email_unavailable"
+        )
+
     access_enc = encrypt_str(token.access_token, settings.token_enc_key_b64)
     refresh_enc = None
     if token.refresh_token:
         refresh_enc = encrypt_str(token.refresh_token, settings.token_enc_key_b64)
 
-    conn = db.query(GbpConnection).filter(GbpConnection.salon_id == salon_id).one_or_none()
+    # Upsert by google_account_email
+    conn = (
+        db.query(GbpConnection)
+        .filter(GbpConnection.google_account_email == email)
+        .one_or_none()
+    )
     if conn is None:
         if refresh_enc is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing refresh_token")
         conn = GbpConnection(
-            salon_id=salon_id,
             google_account_email=email,
             access_token_enc=access_enc,
             refresh_token_enc=refresh_enc,
@@ -95,4 +103,4 @@ def google_oauth_callback(
     db.commit()
     db.refresh(conn)
 
-    return RedirectResponse(url=f"{redirect_base}/settings/gbp?oauth=success")
+    return RedirectResponse(url=f"{redirect_base}/admin/gbp-mapping?oauth=success")

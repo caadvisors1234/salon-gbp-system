@@ -27,6 +27,9 @@ export default function GbpSettingsPage() {
   const {
     conn,
     connErr,
+    connections,
+    selectedConnectionId,
+    setSelectedConnectionId,
     locations,
     available,
     selected,
@@ -40,6 +43,7 @@ export default function GbpSettingsPage() {
     fetchAvailable,
     saveSelected,
     toggleLocation,
+    clearAvailable,
   } = useGbpSettings(oauth);
 
   useEffect(() => {
@@ -167,6 +171,30 @@ export default function GbpSettingsPage() {
         <p className="mb-3 text-sm text-stone-500">
           {HELP_TEXTS.locationSelect}
         </p>
+
+        {/* Connection selector (when multiple connections exist) */}
+        {connections.length > 1 && (
+          <div className="mb-4">
+            <label htmlFor="connection-select" className="mb-1 block text-xs font-medium text-stone-500">
+              Googleアカウントを選択
+            </label>
+            <select
+              id="connection-select"
+              className="w-full max-w-xs rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-700 focus:border-pink-300 focus:outline-none focus:ring-1 focus:ring-pink-300"
+              value={selectedConnectionId ?? ""}
+              onChange={(e) => {
+                setSelectedConnectionId(e.target.value || null);
+                clearAvailable();
+              }}
+            >
+              {connections.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.google_account_email || "（不明）"}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {available.length > 0 && (
           <div className="-mx-5 overflow-x-auto">

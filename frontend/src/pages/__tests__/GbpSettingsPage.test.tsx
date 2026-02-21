@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import GbpSettingsPage from "../GbpSettingsPage";
-import type { GbpConnectionResponse, GbpLocationResponse } from "../../types/api";
+import type { GbpConnectionResponse, GbpConnectionListItem, GbpLocationResponse } from "../../types/api";
 
 const mockApiFetch = vi.fn();
 const mockToast = vi.fn();
@@ -28,11 +28,20 @@ vi.mock("../../lib/toast", () => ({
 
 const conn: GbpConnectionResponse = {
   id: "c1",
-  salon_id: "s1",
   google_account_email: "salon@gmail.com",
   token_expires_at: "2026-12-31T23:59:59Z",
   status: "active",
 };
+
+const connections: GbpConnectionListItem[] = [
+  {
+    id: "c1",
+    google_account_email: "salon@gmail.com",
+    token_expires_at: "2026-12-31T23:59:59Z",
+    status: "active",
+    location_count: 1,
+  },
+];
 
 const locations: GbpLocationResponse[] = [
   {
@@ -46,6 +55,25 @@ const locations: GbpLocationResponse[] = [
   },
 ];
 
+/** Route mock helper — uses exact endpoint matching to avoid ordering issues. */
+function routeMock(url: string, overrides?: Record<string, unknown>) {
+  const defaults: Record<string, unknown> = {
+    "/gbp/connections": connections,
+    "/gbp/connection": conn,
+    "/gbp/locations": locations,
+  };
+  const routes = { ...defaults, ...overrides };
+  // Check most-specific paths first (longer paths before shorter ones)
+  const sorted = Object.keys(routes).sort((a, b) => b.length - a.length);
+  for (const path of sorted) {
+    if (url.endsWith(path) || url.includes(path + "?")) {
+      const val = routes[path];
+      return val instanceof Error ? Promise.reject(val) : Promise.resolve(val);
+    }
+  }
+  return Promise.resolve(null);
+}
+
 function renderPage(search = "") {
   return render(
     <MemoryRouter initialEntries={[`/settings/gbp${search}`]}>
@@ -57,11 +85,7 @@ function renderPage(search = "") {
 describe("GbpSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockApiFetch.mockImplementation((url: string) => {
-      if (url.includes("/gbp/connection")) return Promise.resolve(conn);
-      if (url.includes("/gbp/locations")) return Promise.resolve(locations);
-      return Promise.resolve(null);
-    });
+    mockApiFetch.mockImplementation((url: string) => routeMock(url));
   });
 
   it("shows OAuth success message", async () => {
@@ -90,11 +114,13 @@ describe("GbpSettingsPage", () => {
   });
 
   it("shows message when no connection", async () => {
-    mockApiFetch.mockImplementation((url: string) => {
-      if (url.includes("/gbp/connection")) return Promise.reject(new Error("Not found"));
-      if (url.includes("/gbp/locations")) return Promise.resolve([]);
-      return Promise.resolve(null);
-    });
+    mockApiFetch.mockImplementation((url: string) =>
+      routeMock(url, {
+        "/gbp/connections": [],
+        "/gbp/connection": new Error("Not found"),
+        "/gbp/locations": [],
+      }),
+    );
     renderPage();
     await waitFor(() => {
       expect(screen.getByText("Googleアカウントが連携されていません")).toBeInTheDocument();
@@ -102,11 +128,9 @@ describe("GbpSettingsPage", () => {
   });
 
   it("shows empty locations message", async () => {
-    mockApiFetch.mockImplementation((url: string) => {
-      if (url.includes("/gbp/connection")) return Promise.resolve(conn);
-      if (url.includes("/gbp/locations")) return Promise.resolve([]);
-      return Promise.resolve(null);
-    });
+    mockApiFetch.mockImplementation((url: string) =>
+      routeMock(url, { "/gbp/locations": [] }),
+    );
     renderPage();
     await waitFor(() => {
       expect(screen.getByText("店舗が登録されていません")).toBeInTheDocument();
@@ -138,7 +162,7 @@ describe("GbpSettingsPage", () => {
     await user.click(screen.getByText("店舗を取得"));
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(
-        "/gbp/locations/available",
+        "/gbp/locations/available?connection_id=c1",
         expect.objectContaining({ token: "test-token" }),
       );
     });
@@ -167,15 +191,13 @@ describe("GbpSettingsPage", () => {
       },
     ];
     mockApiFetch.mockImplementation((url: string, opts?: { method?: string }) => {
-      if (url.includes("/gbp/connection")) return Promise.resolve(conn);
       if (url.includes("/gbp/locations/loc-2") && opts?.method === "PATCH") {
         return Promise.resolve([
           { ...locationsForToggle[0], is_active: false },
           { ...locationsForToggle[1], is_active: true },
         ]);
       }
-      if (url.includes("/gbp/locations")) return Promise.resolve(locationsForToggle);
-      return Promise.resolve(null);
+      return routeMock(url, { "/gbp/locations": locationsForToggle });
     });
 
     renderPage();

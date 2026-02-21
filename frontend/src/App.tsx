@@ -23,6 +23,7 @@ const AdminSalonsPage = lazy(() => import("./pages/AdminSalonsPage"));
 const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage"));
 const AdminMonitorPage = lazy(() => import("./pages/AdminMonitorPage"));
 const AdminJobLogsPage = lazy(() => import("./pages/AdminJobLogsPage"));
+const AdminBatchMappingPage = lazy(() => import("./pages/AdminBatchMappingPage"));
 
 function RequireRole({ allowedRoles, role, children }: { allowedRoles: string[]; role: string; children: React.ReactNode }) {
   if (!role) {
@@ -163,6 +164,7 @@ function Shell() {
                     <Route path="/admin/monitor" element={<AdminMonitorPage />} />
                     <Route path="/admin/job-logs" element={<AdminJobLogsPage />} />
                     <Route path="/admin/users" element={<AdminUsersPage />} />
+                    <Route path="/admin/gbp-mapping" element={<RequireSuperAdmin role={me?.role ?? ""}><AdminBatchMappingPage /></RequireSuperAdmin>} />
                     <Route path="*" element={<div className="py-12 text-center text-stone-500">ページが見つかりません</div>} />
                   </Routes>
                 </Suspense>

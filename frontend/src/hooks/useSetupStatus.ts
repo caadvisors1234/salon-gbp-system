@@ -7,7 +7,10 @@ import type { GbpConnectionResponse, GbpLocationResponse, InstagramAccountRespon
 export interface SetupStatus {
   loading: boolean;
   error: boolean;
+  /** True when this salon has a direct active GBP connection (via mapped location). */
   googleConnected: boolean;
+  /** True when any active GBP connection exists globally (for wizard step progression). */
+  googleConnectedGlobally: boolean;
   googleEmail: string | null;
   googleExpired: boolean;
   locationSelected: boolean;
@@ -23,6 +26,7 @@ const INITIAL: SetupStatus = {
   loading: true,
   error: false,
   googleConnected: false,
+  googleConnectedGlobally: false,
   googleEmail: null,
   googleExpired: false,
   locationSelected: false,
@@ -63,7 +67,8 @@ export function useSetupStatus(skip = false): SetupStatus & { refetch: () => voi
       apiFetch<GbpConnectionResponse>("/gbp/connection", opts),
       apiFetch<GbpLocationResponse[]>("/gbp/locations", opts),
       apiFetch<InstagramAccountResponse[]>("/instagram/accounts", opts),
-    ]).then(([connResult, locsResult, igResult]) => {
+      apiFetch<{ exists: boolean }>("/gbp/connection/exists", opts),
+    ]).then(([connResult, locsResult, igResult, existsResult]) => {
       if (id !== counterRef.current) return;
 
       const allFailed = connResult.status === "rejected"
@@ -73,8 +78,12 @@ export function useSetupStatus(skip = false): SetupStatus & { refetch: () => voi
       const conn = connResult.status === "fulfilled" ? connResult.value : null;
       const locs = locsResult.status === "fulfilled" ? locsResult.value : [];
       const igAccounts = igResult.status === "fulfilled" ? igResult.value : [];
+      const connExists = existsResult.status === "fulfilled" ? existsResult.value.exists : false;
 
+      // Salon-specific: this salon has a mapped active connection
       const googleConnected = conn?.status === "active";
+      // Global: any active connection exists (for wizard step progression)
+      const googleConnectedGlobally = googleConnected || connExists;
       const googleExpired = conn?.status === "expired" || conn?.status === "revoked";
       const googleEmail = conn?.google_account_email ?? null;
       const activeLoc = locs.find((l) => l.is_active);
@@ -84,14 +93,16 @@ export function useSetupStatus(skip = false): SetupStatus & { refetch: () => voi
       const instagramConnected = !!activeIg;
       const instagramUsername = activeIg?.ig_username ?? null;
 
+      // Step progression uses the global check so super_admin can skip to location selection
       let currentStep: 1 | 2 | 3 = 1;
-      if (googleConnected) currentStep = 2;
-      if (googleConnected && locationSelected) currentStep = 3;
+      if (googleConnectedGlobally) currentStep = 2;
+      if (googleConnectedGlobally && locationSelected) currentStep = 3;
 
       setStatus({
         loading: false,
         error: allFailed,
         googleConnected,
+        googleConnectedGlobally,
         googleEmail,
         googleExpired,
         locationSelected,

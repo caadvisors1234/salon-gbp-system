@@ -285,7 +285,14 @@ def monitor(
         active_locations_map[salon_id] = int(cnt)
 
     conn_status_map: dict[uuid.UUID, str] = {}
-    for salon_id, status_ in db.query(GbpConnection.salon_id, GbpConnection.status).all():
+    for salon_id, status_ in (
+        db.query(GbpLocation.salon_id, GbpConnection.status)
+        .join(GbpConnection, GbpLocation.gbp_connection_id == GbpConnection.id)
+        .filter(GbpLocation.is_active.is_(True))
+        .distinct(GbpLocation.salon_id)
+        .order_by(GbpLocation.salon_id)
+        .all()
+    ):
         conn_status_map[salon_id] = status_
 
     out: list[SalonMonitorItem] = []

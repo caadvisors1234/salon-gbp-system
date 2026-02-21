@@ -3,7 +3,12 @@ import { useAuth } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import { useToast } from "../lib/toast";
 import { translateError } from "../lib/labels";
-import type { GbpConnectionResponse, GbpLocationResponse, GbpAvailableLocation } from "../types/api";
+import type {
+  GbpConnectionResponse,
+  GbpConnectionListItem,
+  GbpLocationResponse,
+  GbpAvailableLocation,
+} from "../types/api";
 
 const keyOf = (a: { account_id: string; location_id: string }) => `${a.account_id}::${a.location_id}`;
 
@@ -14,6 +19,8 @@ export function useGbpSettings(oauthParam: string | null) {
 
   const [conn, setConn] = useState<GbpConnectionResponse | null>(null);
   const [connErr, setConnErr] = useState<string | null>(null);
+  const [connections, setConnections] = useState<GbpConnectionListItem[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [locations, setLocations] = useState<GbpLocationResponse[]>([]);
   const [available, setAvailable] = useState<GbpAvailableLocation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -37,6 +44,19 @@ export function useGbpSettings(oauthParam: string | null) {
       .catch((e) => {
         if (e.name === "AbortError") return;
         setLocations([]);
+      });
+    // Fetch all connections for the connection selector
+    apiFetch<GbpConnectionListItem[]>("/gbp/connections", { token, signal: ac.signal })
+      .then((conns) => {
+        setConnections(conns);
+        // Only set initial value if not already selected (functional updater avoids stale closure)
+        if (conns.length > 0) {
+          setSelectedConnectionId((prev) => prev ?? conns[0].id);
+        }
+      })
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setConnections([]);
       });
     return () => ac.abort();
   }, [token]);
@@ -84,7 +104,11 @@ export function useGbpSettings(oauthParam: string | null) {
     setBusy(true);
     setErr(null);
     try {
-      const locs = await apiFetch<GbpAvailableLocation[]>("/gbp/locations/available", { token });
+      const connId = selectedConnectionId;
+      const url = connId
+        ? `/gbp/locations/available?connection_id=${connId}`
+        : "/gbp/locations/available";
+      const locs = await apiFetch<GbpAvailableLocation[]>(url, { token });
       setAvailable(locs);
       toast("success", `${locs.length}件のロケーションを取得しました`);
     } catch (e: unknown) {
@@ -92,10 +116,10 @@ export function useGbpSettings(oauthParam: string | null) {
     } finally {
       setBusy(false);
     }
-  }, [token, toast]);
+  }, [token, selectedConnectionId, toast]);
 
   const saveSelected = useCallback(async () => {
-    if (!token) return;
+    if (!token || !selectedConnectionId) return;
     setBusy(true);
     setErr(null);
     try {
@@ -104,6 +128,7 @@ export function useGbpSettings(oauthParam: string | null) {
         method: "POST",
         token,
         body: JSON.stringify({
+          gbp_connection_id: selectedConnectionId,
           location: chosen
             ? {
                 account_id: chosen.account_id,
@@ -121,7 +146,7 @@ export function useGbpSettings(oauthParam: string | null) {
     } finally {
       setBusy(false);
     }
-  }, [token, available, selected, toast]);
+  }, [token, available, selected, selectedConnectionId, toast]);
 
   const toggleLocation = useCallback(
     async (id: string) => {
@@ -148,6 +173,9 @@ export function useGbpSettings(oauthParam: string | null) {
   return {
     conn,
     connErr,
+    connections,
+    selectedConnectionId,
+    setSelectedConnectionId,
     locations,
     available,
     selected,
@@ -161,6 +189,7 @@ export function useGbpSettings(oauthParam: string | null) {
     fetchAvailable,
     saveSelected,
     toggleLocation,
+    clearAvailable: () => setAvailable([]),
     refetch: fetchData,
   };
 }

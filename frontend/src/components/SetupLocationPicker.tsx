@@ -5,7 +5,11 @@ import { translateError } from "../lib/labels";
 import Button from "./Button";
 import Alert from "./Alert";
 import { IconSpinner } from "./icons";
-import type { GbpAvailableLocation, GbpLocationResponse } from "../types/api";
+import type {
+  GbpAvailableLocation,
+  GbpConnectionListItem,
+  GbpLocationResponse,
+} from "../types/api";
 
 interface SetupLocationPickerProps {
   onComplete: () => void;
@@ -14,18 +18,35 @@ interface SetupLocationPickerProps {
 export default function SetupLocationPicker({ onComplete }: SetupLocationPickerProps) {
   const { session } = useAuth();
   const token = session?.access_token;
+  const [connections, setConnections] = useState<GbpConnectionListItem[]>([]);
+  const [selectedConnId, setSelectedConnId] = useState<string | null>(null);
   const [locations, setLocations] = useState<GbpAvailableLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch connections first, then available locations
   useEffect(() => {
     if (!token) return;
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-    apiFetch<GbpAvailableLocation[]>("/gbp/locations/available", { token, signal: ac.signal })
+
+    apiFetch<GbpConnectionListItem[]>("/gbp/connections", { token, signal: ac.signal })
+      .then((conns) => {
+        setConnections(conns);
+        const active = conns.find((c) => c.status === "active");
+        const connId = active?.id ?? conns[0]?.id;
+        if (connId) {
+          setSelectedConnId(connId);
+          return apiFetch<GbpAvailableLocation[]>(
+            `/gbp/locations/available?connection_id=${connId}`,
+            { token, signal: ac.signal },
+          );
+        }
+        return Promise.resolve([]);
+      })
       .then((locs) => {
         setLocations(locs);
         setLoading(false);
@@ -35,13 +56,35 @@ export default function SetupLocationPicker({ onComplete }: SetupLocationPickerP
         setError(translateError(e?.message ?? String(e)));
         setLoading(false);
       });
+
     return () => ac.abort();
   }, [token]);
+
+  // Refetch locations when connection changes
+  const handleConnectionChange = async (connId: string) => {
+    if (!token) return;
+    setSelectedConnId(connId);
+    setLocations([]);
+    setSelected(null);
+    setLoading(true);
+    setError(null);
+    try {
+      const locs = await apiFetch<GbpAvailableLocation[]>(
+        `/gbp/locations/available?connection_id=${connId}`,
+        { token },
+      );
+      setLocations(locs);
+    } catch (e: unknown) {
+      setError(translateError(e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const keyOf = (a: GbpAvailableLocation) => `${a.account_id}::${a.location_id}`;
 
   const handleSave = async () => {
-    if (!token || !selected) return;
+    if (!token || !selected || !selectedConnId) return;
     const chosen = locations.find((l) => keyOf(l) === selected);
     if (!chosen) return;
     setSaving(true);
@@ -51,6 +94,7 @@ export default function SetupLocationPicker({ onComplete }: SetupLocationPickerP
         method: "POST",
         token,
         body: JSON.stringify({
+          gbp_connection_id: selectedConnId,
           location: {
             account_id: chosen.account_id,
             location_id: chosen.location_id,
@@ -90,6 +134,27 @@ export default function SetupLocationPicker({ onComplete }: SetupLocationPickerP
 
   return (
     <div className="space-y-3">
+      {/* Connection selector when multiple connections exist */}
+      {connections.length > 1 && (
+        <div>
+          <label htmlFor="setup-connection-select" className="mb-1 block text-xs font-medium text-stone-500">
+            Googleアカウント
+          </label>
+          <select
+            id="setup-connection-select"
+            className="w-full max-w-xs rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-700 focus:border-pink-300 focus:outline-none focus:ring-1 focus:ring-pink-300"
+            value={selectedConnId ?? ""}
+            onChange={(e) => handleConnectionChange(e.target.value)}
+          >
+            {connections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.google_account_email || "（不明）"}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="space-y-2">
         {locations.map((loc) => {
           const k = keyOf(loc);
