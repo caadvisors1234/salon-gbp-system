@@ -26,8 +26,9 @@ const AdminJobLogsPage = lazy(() => import("./pages/AdminJobLogsPage"));
 const AdminBatchMappingPage = lazy(() => import("./pages/AdminBatchMappingPage"));
 const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
 
-const PUBLIC_PATHS = ["/login", "/privacy", "/terms"];
+const PUBLIC_PATHS = ["/", "/login", "/privacy", "/terms"];
 
 function RequireRole({ allowedRoles, role, children }: { allowedRoles: string[]; role: string; children: React.ReactNode }) {
   if (!role) {
@@ -89,6 +90,9 @@ function Shell() {
   if (!session && !isPublicRoute) return <Navigate to="/login" replace />;
 
   if (isPublicRoute) {
+    if (session && location.pathname === "/") {
+      return <Navigate to="/dashboard" replace />;
+    }
     return (
       <Suspense fallback={
         <div className="flex items-center justify-center py-12">
@@ -96,6 +100,7 @@ function Shell() {
         </div>
       }>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
@@ -142,7 +147,7 @@ function Shell() {
               <IconMenu className="h-5 w-5 text-stone-600" />
             </button>
             <img src="/favicon-32x32.png" alt="" width={20} height={20} className="shrink-0" />
-            <span className="font-bold text-pink-600">Salon GBP</span>
+            <span className="font-bold text-pink-600">Salon GBP Manager</span>
           </div>
 
           {/* Main content */}
@@ -155,7 +160,6 @@ function Shell() {
                   </div>
                 }>
                   <Routes>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
                     <Route path="/settings/gbp" element={<RequireSuperAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSuperAdmin>} />

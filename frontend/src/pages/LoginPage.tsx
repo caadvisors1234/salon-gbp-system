@@ -21,7 +21,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-pink-600">Salon GBP</h1>
+          <h1 className="text-2xl font-bold text-pink-600">Salon GBP Manager</h1>
           <p className="mt-2 text-sm text-stone-500">サロン向けGBP管理システム</p>
         </div>
 

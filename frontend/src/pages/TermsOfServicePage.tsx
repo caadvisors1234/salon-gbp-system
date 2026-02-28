@@ -13,7 +13,7 @@ export default function TermsOfServicePage() {
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
             <img src="/favicon-32x32.png" alt="" width={24} height={24} />
-            <span className="text-xl font-bold text-pink-600">Salon GBP</span>
+            <span className="text-xl font-bold text-pink-600">Salon GBP Manager</span>
           </Link>
         </div>
 
