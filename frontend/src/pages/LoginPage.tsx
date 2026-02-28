@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import Button from "../components/Button";
 import FormField, { inputClass } from "../components/FormField";
@@ -78,6 +78,16 @@ export default function LoginPage() {
               ログイン
             </Button>
           </form>
+        </div>
+
+        <div className="mt-6 text-center text-xs text-stone-400">
+          <Link to="/privacy" className="hover:text-pink-600 hover:underline">
+            プライバシーポリシー
+          </Link>
+          <span className="mx-2">|</span>
+          <Link to="/terms" className="hover:text-pink-600 hover:underline">
+            利用規約
+          </Link>
         </div>
       </div>
     </div>

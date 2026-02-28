@@ -24,6 +24,10 @@ const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage"));
 const AdminMonitorPage = lazy(() => import("./pages/AdminMonitorPage"));
 const AdminJobLogsPage = lazy(() => import("./pages/AdminJobLogsPage"));
 const AdminBatchMappingPage = lazy(() => import("./pages/AdminBatchMappingPage"));
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
+
+const PUBLIC_PATHS = ["/login", "/privacy", "/terms"];
 
 function RequireRole({ allowedRoles, role, children }: { allowedRoles: string[]; role: string; children: React.ReactNode }) {
   if (!role) {
@@ -69,7 +73,7 @@ function Shell() {
     return () => window.removeEventListener("unhandledrejection", handler);
   }, [toast]);
 
-  const isLogin = location.pathname === "/login";
+  const isPublicRoute = PUBLIC_PATHS.includes(location.pathname);
 
   if (loading) {
     return (
@@ -82,9 +86,9 @@ function Shell() {
     );
   }
 
-  if (!session && !isLogin) return <Navigate to="/login" replace />;
+  if (!session && !isPublicRoute) return <Navigate to="/login" replace />;
 
-  if (isLogin) {
+  if (isPublicRoute) {
     return (
       <Suspense fallback={
         <div className="flex items-center justify-center py-12">
@@ -93,6 +97,8 @@ function Shell() {
       }>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
         </Routes>
       </Suspense>
     );
