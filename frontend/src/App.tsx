@@ -13,7 +13,6 @@ import { translateError } from "./lib/labels";
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const SalonSettingsPage = lazy(() => import("./pages/SalonSettingsPage"));
-const GbpSettingsPage = lazy(() => import("./pages/GbpSettingsPage"));
 const InstagramSettingsPage = lazy(() => import("./pages/InstagramSettingsPage"));
 const PostsListPage = lazy(() => import("./pages/PostsListPage"));
 const PostDetailPage = lazy(() => import("./pages/PostDetailPage"));
@@ -158,7 +157,6 @@ function Shell() {
                   <Routes>
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/settings/salon" element={<SalonSettingsPage />} />
-                    <Route path="/settings/gbp" element={<RequireSuperAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSuperAdmin>} />
                     <Route path="/settings/instagram" element={<InstagramSettingsPage />} />
                     <Route path="/posts/:postId" element={<PostDetailPage />} />
                     <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />

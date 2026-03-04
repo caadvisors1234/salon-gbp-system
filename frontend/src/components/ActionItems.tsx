@@ -24,7 +24,7 @@ export default function ActionItems({ counts, setupStatus, role }: ActionItemsPr
       label: role === "super_admin"
         ? "Googleアカウントの再連携が必要です"
         : "Googleアカウントの再連携が必要です（管理者に連絡してください）",
-      to: role === "super_admin" ? "/settings/gbp" : "/alerts",
+      to: role === "super_admin" ? "/admin/gbp-mapping" : "/alerts",
       variant: "red",
     });
   }

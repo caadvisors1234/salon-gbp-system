@@ -119,7 +119,7 @@ export default function DashboardPage() {
                 )}
               </div>
               {me?.role === "super_admin" && (
-                <Link className="mt-3 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/settings/gbp">
+                <Link className="mt-3 inline-block text-sm font-medium text-pink-600 hover:text-pink-700" to="/admin/gbp-mapping">
                   設定を管理 →
                 </Link>
               )}
