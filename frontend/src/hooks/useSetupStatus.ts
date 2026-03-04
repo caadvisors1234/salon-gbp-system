@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "../lib/auth";
-import { useMe } from "../lib/me";
 import { apiFetch, SALON_CHANGED_EVENT } from "../lib/api";
 import { SHOW_INSTAGRAM_UI } from "../lib/featureFlags";
 import type { GbpConnectionResponse, GbpLocationResponse, InstagramAccountResponse } from "../types/api";
@@ -40,14 +39,12 @@ const INITIAL: SetupStatus = {
 
 export function useSetupStatus(skip = false): SetupStatus & { refetch: () => void } {
   const { session } = useAuth();
-  const { me } = useMe();
   const token = session?.access_token ?? null;
   const [status, setStatus] = useState<SetupStatus>(INITIAL);
   const counterRef = useRef(0);
   const activeAbort = useRef<AbortController | null>(null);
 
-  // Skip for staff role
-  const shouldSkip = skip || me?.role === "staff";
+  const shouldSkip = skip;
 
   const execute = useCallback(() => {
     activeAbort.current?.abort();

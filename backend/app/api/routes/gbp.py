@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, db_session, require_roles, require_salon
+from app.api.deps import CurrentUser, db_session, get_current_user, require_roles, require_salon
 from app.models.gbp_connection import GbpConnection
 from app.models.gbp_location import GbpLocation
 from app.models.salon import Salon
@@ -87,14 +87,10 @@ def _build_bulk_mapping(db: Session) -> list[BulkMappingItem]:
     return out
 
 
-# NOTE: Read-only endpoints remain salon_admin because useSetupStatus on the
-# dashboard needs connection/location info for all admin roles.  The response
-# schema (GbpConnectionResponse) exposes only email, status, and expiry -- no
-# tokens or secrets.
 @router.get("/connection", response_model=GbpConnectionResponse)
 def get_connection(
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin")),
+    user: CurrentUser = Depends(get_current_user),
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> GbpConnectionResponse:
     salon_id = require_salon(user, x_salon_id)
@@ -107,7 +103,7 @@ def get_connection(
 @router.get("/connection/exists")
 def connection_exists(
     db: Session = Depends(db_session),
-    _: CurrentUser = Depends(require_roles("salon_admin")),
+    _: CurrentUser = Depends(get_current_user),
 ) -> dict[str, bool]:
     """Check if any active GbpConnection exists (for setup wizard detection)."""
     return {"exists": _any_active_connection_exists(db)}
@@ -141,7 +137,7 @@ def list_connections(
 @router.get("/locations", response_model=list[GbpLocationResponse])
 def list_locations(
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin")),
+    user: CurrentUser = Depends(get_current_user),
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ) -> list[GbpLocationResponse]:
     salon_id = require_salon(user, x_salon_id)

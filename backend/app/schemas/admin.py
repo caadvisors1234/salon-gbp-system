@@ -48,7 +48,7 @@ class AdminSalonCreate(BaseModel):
 class AdminUserInviteRequest(BaseModel):
     email: EmailStr
     password: str | None = Field(default=None, min_length=8, max_length=128, repr=False)
-    role: Literal["staff", "salon_admin", "super_admin"] = "staff"
+    role: Literal["staff", "super_admin"] = "staff"
     salon_ids: list[uuid.UUID] = Field(default_factory=list)
     display_name: str | None = Field(default=None, max_length=100)
 

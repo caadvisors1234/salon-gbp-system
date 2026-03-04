@@ -25,7 +25,7 @@ const me: MeResponse = {
   id: "u1",
   supabase_user_id: "su1",
   email: "admin@salon.jp",
-  role: "salon_admin",
+  role: "staff",
   salon_ids: ["s1"],
   salons: [{ id: "s1", slug: "s1", name: "Salon 1", is_active: true }],
 };
@@ -130,7 +130,7 @@ describe("DashboardPage", () => {
       expect(screen.getByText("ダッシュボード")).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByText("admin@salon.jp（サロン管理者）")).toBeInTheDocument();
+      expect(screen.getByText("admin@salon.jp（スタッフ）")).toBeInTheDocument();
     });
   });
 

@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from app.api.deps import CurrentUser, require_salon
 
 
-def _user(*, role: str = "salon_admin", salon_ids: tuple[uuid.UUID, ...] = ()) -> CurrentUser:
+def _user(*, role: str = "staff", salon_ids: tuple[uuid.UUID, ...] = ()) -> CurrentUser:
     return CurrentUser(
         id=uuid.uuid4(),
         supabase_user_id=uuid.uuid4(),

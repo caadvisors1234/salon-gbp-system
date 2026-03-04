@@ -22,11 +22,11 @@ def test_invite_valid_full():
     req = AdminUserInviteRequest(
         email="admin@salon.jp",
         password="securepass123",
-        role="salon_admin",
+        role="staff",
         salon_ids=[sid],
         display_name="テスト太郎",
     )
-    assert req.role == "salon_admin"
+    assert req.role == "staff"
     assert req.salon_ids == [sid]
     assert req.display_name == "テスト太郎"
 

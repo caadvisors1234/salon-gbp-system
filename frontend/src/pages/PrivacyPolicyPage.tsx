@@ -70,7 +70,7 @@ export default function PrivacyPolicyPage() {
                 <li>OAuthトークンはAES-256-GCMで暗号化してデータベースに保存</li>
                 <li>HTTPS/TLSによる通信暗号化</li>
                 <li>サロン単位のテナント分離によるデータアクセス制御</li>
-                <li>ロールベースのアクセス制御（staff, salon_admin, super_admin）</li>
+                <li>ロールベースのアクセス制御（staff, super_admin）</li>
               </ul>
             </section>
 

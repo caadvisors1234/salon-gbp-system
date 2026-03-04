@@ -186,7 +186,6 @@ export function jobTypeLabel(type: string): string {
 
 const ROLE_LABELS: Record<string, string> = {
   staff: "スタッフ",
-  salon_admin: "サロン管理者",
   super_admin: "管理者",
 };
 

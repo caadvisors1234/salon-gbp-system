@@ -60,8 +60,8 @@ describe("SetupWizard", () => {
     expect(screen.queryByText(SETUP_LABELS.step3Button)).not.toBeInTheDocument();
   });
 
-  it("renders nothing for salon_admin when Google and location are already configured", () => {
-    mockRole.mockReturnValue("salon_admin");
+  it("renders nothing for staff when Google and location are already configured", () => {
+    mockRole.mockReturnValue("staff");
     const status = makeStatus({
       googleConnected: true,
       googleConnectedGlobally: true,

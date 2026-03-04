@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, db_session, require_roles, require_salon
+from app.api.deps import CurrentUser, db_session, get_current_user, require_salon
 from app.core.config import get_settings
 from app.core.crypto import encrypt_str
 from app.core.oauth_state import OAuthStateError, create_state, load_state
@@ -29,7 +29,7 @@ def meta_oauth_start(
     account_type: str = Query(default="official"),
     staff_name: str | None = Query(default=None),
     db: Session = Depends(db_session),
-    user: CurrentUser = Depends(require_roles("salon_admin")),
+    user: CurrentUser = Depends(get_current_user),
     x_salon_id: str | None = Header(default=None, alias="X-Salon-Id"),
 ):
     _ = db

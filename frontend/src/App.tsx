@@ -44,10 +44,6 @@ function RequireRole({ allowedRoles, role, children }: { allowedRoles: string[];
   return <>{children}</>;
 }
 
-export function RequireSalonAdmin({ role, children }: { role: string; children: React.ReactNode }) {
-  return <RequireRole allowedRoles={["salon_admin", "super_admin"]} role={role}>{children}</RequireRole>;
-}
-
 export function RequireSuperAdmin({ role, children }: { role: string; children: React.ReactNode }) {
   return <RequireRole allowedRoles={["super_admin"]} role={role}>{children}</RequireRole>;
 }
@@ -161,9 +157,9 @@ function Shell() {
                 }>
                   <Routes>
                     <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/settings/salon" element={<RequireSalonAdmin role={me?.role ?? ""}><SalonSettingsPage /></RequireSalonAdmin>} />
+                    <Route path="/settings/salon" element={<SalonSettingsPage />} />
                     <Route path="/settings/gbp" element={<RequireSuperAdmin role={me?.role ?? ""}><GbpSettingsPage /></RequireSuperAdmin>} />
-                    <Route path="/settings/instagram" element={<RequireSalonAdmin role={me?.role ?? ""}><InstagramSettingsPage /></RequireSalonAdmin>} />
+                    <Route path="/settings/instagram" element={<InstagramSettingsPage />} />
                     <Route path="/posts/:postId" element={<PostDetailPage />} />
                     <Route path="/posts/pending" element={<PostsListPage kind="pending" />} />
                     <Route path="/posts/history" element={<PostsListPage kind="history" />} />

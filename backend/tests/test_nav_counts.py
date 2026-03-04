@@ -155,7 +155,7 @@ def test_excludes_global_alerts_for_non_super_admin(db_session: Session) -> None
 
     result = get_nav_counts(
         db=db_session,
-        user=_user(role="salon_admin"),
+        user=_user(role="staff"),
         x_salon_id=str(SALON_ID),
     )
 

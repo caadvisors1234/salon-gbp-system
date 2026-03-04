@@ -80,7 +80,7 @@ export default function AdminUsersPage() {
       key: "role",
       header: "権限",
       render: (u) => (
-        <Badge variant={u.role === "super_admin" ? "error" : u.role === "salon_admin" ? "primary" : "default"}>
+        <Badge variant={u.role === "super_admin" ? "error" : "default"}>
           {roleLabel(u.role)}
         </Badge>
       ),
@@ -221,7 +221,6 @@ export default function AdminUsersPage() {
           <FormField label="ロール">
             <select className={selectClass} value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}>
               <option value="staff">スタッフ</option>
-              <option value="salon_admin">サロン管理者</option>
               <option value="super_admin">管理者</option>
             </select>
           </FormField>

@@ -13,7 +13,7 @@ vi.mock("../../hooks/useNavBadgeCounts", () => ({
 function renderSidebar(props: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   const defaults = {
     email: "test@example.com",
-    role: "salon_admin",
+    role: "staff",
     salons: [{ id: "s1", slug: "s1", name: "Salon 1", is_active: true }],
     currentSalonId: "s1",
     onSalonChange: vi.fn(),
@@ -94,15 +94,8 @@ describe("Sidebar", () => {
     expect(screen.getByLabelText("ナビゲーション")).toBeInTheDocument();
   });
 
-  it("hides settings items for staff role", () => {
+  it("shows マイサロン but hides admin-only items for staff role", () => {
     renderSidebar({ role: "staff" });
-    expect(screen.queryByText("マイサロン")).not.toBeInTheDocument();
-    expect(screen.queryByText("GBPマッピング")).not.toBeInTheDocument();
-    expect(screen.queryByText("Instagram設定")).not.toBeInTheDocument();
-  });
-
-  it("shows settings items for salon_admin role (GBPマッピング is super_admin only)", () => {
-    renderSidebar({ role: "salon_admin" });
     expect(screen.getByText("マイサロン")).toBeInTheDocument();
     expect(screen.queryByText("GBPマッピング")).not.toBeInTheDocument();
     expect(screen.queryByText("Instagram設定")).not.toBeInTheDocument();

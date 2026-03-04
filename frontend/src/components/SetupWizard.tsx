@@ -88,9 +88,9 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
   }
 
   // For non-super_admin: Google/Location steps are managed by super_admin.
-  // When Instagram UI is enabled, salon_admin can only act on Instagram step.
+  // When Instagram UI is enabled, staff can only act on Instagram step.
   if (!isSuperAdmin) {
-    // Google or Location not done → nothing salon_admin can do
+    // Google or Location not done → nothing staff can do
     if (!status.googleConnected || !status.locationSelected) {
       return (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-5 py-3">
@@ -141,7 +141,7 @@ export default function SetupWizard({ status, onRefetch }: SetupWizardProps) {
         </div>
       );
     }
-    // All done for salon_admin
+    // All done for staff
     return null;
   }
 

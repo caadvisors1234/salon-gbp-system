@@ -26,8 +26,7 @@ export default function DashboardPage() {
   const { me } = useMe();
   const { counts } = useNavBadgeCounts();
   const setupStatus = useSetupStatusContext();
-  // Setup wizard is relevant for salon_admin and super_admin (staff skipped by useSetupStatus)
-  const showSetupWizard = me?.role === "salon_admin" || me?.role === "super_admin";
+  const showSetupWizard = !!me;
 
   const { data: pendingPosts, loading, error } = useApiFetch<PostListItem[]>(
     (token, signal) =>
